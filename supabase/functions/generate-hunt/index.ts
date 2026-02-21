@@ -1,6 +1,6 @@
-import Anthropic from 'npm:@anthropic-ai/sdk';
+import OpenAI from 'npm:openai';
 
-const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
+const client = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,20 +13,24 @@ Deno.serve(async (req) => {
   try {
     const { location, prompt, count, minPts, maxPts } = await req.json();
 
-    const message = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 2048,
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
       messages: [
         {
+          role: 'system',
+          content: 'You are Loot Goose, a fun AI that creates scavenger hunt lists. Always respond with valid JSON only.',
+        },
+        {
           role: 'user',
-          content: `You are Loot Goose, a fun AI that creates scavenger hunt lists. Generate a scavenger hunt for the following:
+          content: `Generate a scavenger hunt for the following:
 
 Location: ${location}
 Theme: ${prompt}
 Number of items: ${count}
 Points range: ${minPts}-${maxPts} per item
 
-Return ONLY valid JSON in this exact format:
+Return JSON in this exact format:
 {
   "title": "A fun, punny hunt title",
   "items": [
@@ -39,16 +43,13 @@ Return ONLY valid JSON in this exact format:
   ]
 }
 
-Make the items fun, achievable, specific to the location and theme, and ranging from easy to harder. Be creative and slightly silly. No markdown, just raw JSON.`,
+Make items fun, achievable, specific to the location and theme, ranging from easy to harder. Be creative and slightly silly.`,
         },
       ],
     });
 
-    const content = message.content[0];
-    if (content.type !== 'text') throw new Error('Unexpected response type');
-
-    const jsonText = content.text.trim();
-    const data = JSON.parse(jsonText);
+    const text = response.choices[0].message.content ?? '{}';
+    const data = JSON.parse(text);
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
