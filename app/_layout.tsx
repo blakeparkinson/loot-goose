@@ -1,8 +1,39 @@
+import React, { useState, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import Colors from '@/constants/Colors';
+import GooseSplash from '@/components/GooseSplash';
+
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [appReady, setAppReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    // Simulate any async init here (fonts, stores, etc.)
+    const prepare = async () => {
+      try {
+        await SplashScreen.hideAsync();
+      } finally {
+        setAppReady(true);
+      }
+    };
+    prepare();
+  }, []);
+
+  if (!appReady || !splashDone) {
+    return (
+      <>
+        <StatusBar style="light" />
+        {appReady && (
+          <GooseSplash onFinished={() => setSplashDone(true)} />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <StatusBar style="light" />
