@@ -62,12 +62,17 @@ export async function generateHunt(params: {
     hint: item.hint,
     points: item.points,
     completed: false,
+    sublocation: item.sublocation,
+    geocodeQuery: item.geocodeQuery,
   }));
 
   return {
     id: `hunt-${Date.now()}`,
     title: data.title,
     location,
+    coords: data.huntCoords
+      ? { latitude: data.huntCoords.lat, longitude: data.huntCoords.lon }
+      : undefined,
     prompt,
     difficulty,
     items,

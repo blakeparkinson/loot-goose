@@ -49,6 +49,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'Loot Goose 🪿', headerLargeTitle: true }} />
         <Stack.Screen name="create" options={{ title: 'New Hunt', presentation: 'modal' }} />
         <Stack.Screen name="hunt/[id]" options={{ title: 'Hunt' }} />
+        <Stack.Screen name="hunt/map" options={{ title: 'Stop Map' }} />
         <Stack.Screen
           name="camera"
           options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -13,6 +14,8 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { HuntItem } from '@/lib/types';
+import { geocodeQuery } from '@/lib/geocoding';
+import { openNativeMaps, openMapsSearch } from '@/lib/navigation';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -26,8 +29,10 @@ export default function HuntScreen() {
   const navigation = useNavigation();
   const getHunt = useAppStore((s) => s.getHunt);
   const deleteHunt = useAppStore((s) => s.deleteHunt);
+  const updateItemCoords = useAppStore((s) => s.updateItemCoords);
 
   const hunt = getHunt(id);
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
@@ -59,55 +64,96 @@ export default function HuntScreen() {
     ]);
   };
 
-  const renderItem = ({ item, index }: { item: HuntItem; index: number }) => (
-    <View style={[styles.itemCard, item.completed && styles.itemCardDone]}>
-      <View style={styles.itemLeft}>
-        <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
-          {item.completed ? (
-            <FontAwesome name="check" size={14} color={Colors.green} />
-          ) : (
-            <Text style={styles.itemNumberText}>{index + 1}</Text>
-          )}
+  const handleNavigate = async (item: HuntItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setNavigatingId(item.id);
+    try {
+      let coords = item.coords;
+      if (!coords && item.geocodeQuery) {
+        coords = (await geocodeQuery(item.geocodeQuery)) ?? undefined;
+        if (coords) await updateItemCoords(hunt.id, item.id, coords);
+      }
+      if (coords) {
+        await openNativeMaps(coords, `${item.name} — ${hunt.title}`);
+      } else {
+        await openMapsSearch(`${item.sublocation ?? item.name}, ${hunt.location}`);
+      }
+    } finally {
+      setNavigatingId(null);
+    }
+  };
+
+  const renderItem = ({ item, index }: { item: HuntItem; index: number }) => {
+    const isNavigating = navigatingId === item.id;
+    return (
+      <View style={[styles.itemCard, item.completed && styles.itemCardDone]}>
+        <View style={styles.itemLeft}>
+          <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
+            {item.completed ? (
+              <FontAwesome name="check" size={14} color={Colors.green} />
+            ) : (
+              <Text style={styles.itemNumberText}>{index + 1}</Text>
+            )}
+          </View>
+          <View style={styles.itemInfo}>
+            <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
+              {item.name}
+            </Text>
+            <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
+            {!item.completed && item.sublocation && (
+              <Text style={styles.itemSublocation} numberOfLines={1}>
+                <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
+              </Text>
+            )}
+            {!item.completed && (
+              <Text style={styles.itemHint} numberOfLines={1}>
+                <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} /> {item.hint}
+              </Text>
+            )}
+            {item.completed && item.verificationNote ? (
+              <Text style={styles.verificationNote} numberOfLines={1}>
+                <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
+              </Text>
+            ) : null}
+          </View>
         </View>
-        <View style={styles.itemInfo}>
-          <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
-            {item.name}
+        <View style={styles.itemRight}>
+          <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
+            {item.points}pts
           </Text>
-          <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
           {!item.completed && (
-            <Text style={styles.itemHint} numberOfLines={1}>
-              <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} /> {item.hint}
-            </Text>
+            <View style={styles.itemActions}>
+              {(item.sublocation || item.geocodeQuery) && (
+                <TouchableOpacity
+                  style={styles.navigateBtn}
+                  onPress={() => handleNavigate(item)}
+                  disabled={isNavigating}
+                >
+                  {isNavigating ? (
+                    <ActivityIndicator size="small" color={Colors.blue} />
+                  ) : (
+                    <FontAwesome name="location-arrow" size={14} color={Colors.blue} />
+                  )}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.captureBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
+                }}
+              >
+                <FontAwesome name="camera" size={14} color={Colors.gold} />
+              </TouchableOpacity>
+            </View>
           )}
-          {item.completed && item.verificationNote ? (
-            <Text style={styles.verificationNote} numberOfLines={1}>
-              <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
-            </Text>
-          ) : null}
         </View>
       </View>
-      <View style={styles.itemRight}>
-        <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
-          {item.points}pts
-        </Text>
-        {!item.completed && (
-          <TouchableOpacity
-            style={styles.captureBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
-            }}
-          >
-            <FontAwesome name="camera" size={14} color={Colors.gold} />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
+    );
+  };
 
   const Header = () => (
     <View>
-      {/* Stats card */}
       <View style={styles.statsCard}>
         <View style={styles.statsRow}>
           <View style={styles.stat}>
@@ -136,6 +182,18 @@ export default function HuntScreen() {
             <Text style={styles.completedBannerText}>🎉 Hunt Complete! You're a Loot Goose legend.</Text>
           </View>
         )}
+
+        {/* Map button */}
+        <TouchableOpacity
+          style={styles.mapBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({ pathname: '/hunt/map', params: { id: hunt.id } });
+          }}
+        >
+          <FontAwesome name="map" size={14} color={Colors.blue} />
+          <Text style={styles.mapBtnText}>View Stop Map</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.itemsHeading}>Items</Text>
@@ -167,12 +225,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 80 },
 
   statsCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.card, borderRadius: 16, padding: 20,
+    marginBottom: 24, borderWidth: 1, borderColor: Colors.border,
   },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 16 },
   stat: { alignItems: 'center', gap: 4 },
@@ -182,70 +236,57 @@ const styles = StyleSheet.create({
   diffPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
   diffPillText: { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
 
-  progressBar: { height: 8, backgroundColor: Colors.surface, borderRadius: 4, overflow: 'hidden' },
+  progressBar: { height: 8, backgroundColor: Colors.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 12 },
   progressFill: { height: '100%', borderRadius: 4 },
 
   completedBanner: {
-    marginTop: 12,
-    backgroundColor: Colors.greenLight,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
+    backgroundColor: Colors.greenLight, borderRadius: 10, padding: 12,
+    alignItems: 'center', marginBottom: 12,
   },
   completedBannerText: { color: Colors.green, fontWeight: '700', fontSize: 14 },
+
+  mapBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10, marginTop: 4,
+  },
+  mapBtnText: { fontSize: 14, fontWeight: '700', color: Colors.blue },
 
   itemsHeading: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
 
   itemCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.card, borderRadius: 14, padding: 14, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: Colors.border,
   },
   itemCardDone: { opacity: 0.6 },
   itemLeft: { flex: 1, flexDirection: 'row', gap: 12 },
   itemNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   itemNumberText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 14 },
   itemInfo: { flex: 1 },
   itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
   itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
+  itemSublocation: { fontSize: 12, color: Colors.blue, marginBottom: 3 },
   itemHint: { fontSize: 12, color: Colors.gold },
   verificationNote: { fontSize: 12, color: Colors.green },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
+  itemActions: { flexDirection: 'row', gap: 6 },
+  navigateBtn: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.blueLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
   captureBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.goldLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.goldLight,
+    alignItems: 'center', justifyContent: 'center',
   },
 
   deleteBtn: {
-    position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: Colors.redLight,
+    position: 'absolute', bottom: 20, alignSelf: 'center', flexDirection: 'row',
+    alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 20, backgroundColor: Colors.redLight,
   },
   deleteBtnText: { color: Colors.red, fontWeight: '600', fontSize: 14 },
 });

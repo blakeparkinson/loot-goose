@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Hunt, HuntItem } from './types';
+import { Hunt, HuntItem, Coords } from './types';
 
 const HUNTS_KEY = 'lootgoose_hunts';
 
@@ -10,6 +10,7 @@ interface AppStore {
   saveHunt: (hunt: Hunt) => Promise<void>;
   deleteHunt: (huntId: string) => Promise<void>;
   completeItem: (huntId: string, itemId: string, photoUri: string, verificationNote: string) => Promise<void>;
+  updateItemCoords: (huntId: string, itemId: string, coords: Coords) => Promise<void>;
   getHunt: (huntId: string) => Hunt | undefined;
 }
 
@@ -71,6 +72,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       items: updatedItems,
       earnedPoints,
       completedAt: allDone ? new Date().toISOString() : undefined,
+    });
+  },
+
+  updateItemCoords: async (huntId, itemId, coords) => {
+    const { hunts, saveHunt } = get();
+    const hunt = hunts.find((h) => h.id === huntId);
+    if (!hunt) return;
+    await saveHunt({
+      ...hunt,
+      items: hunt.items.map((i) => (i.id === itemId ? { ...i, coords } : i)),
     });
   },
 
