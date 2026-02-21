@@ -19,21 +19,32 @@ import { HuntDifficulty } from '@/lib/types';
 import { generateHunt } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 
-const DIFFICULTIES: { key: HuntDifficulty; label: string; emoji: string; desc: string; color: string }[] = [
-  { key: 'easy', label: 'Chill', emoji: '🌿', desc: '5 items · relaxed vibes', color: Colors.green },
-  { key: 'medium', label: 'Honky', emoji: '🪿', desc: '8 items · classic goose chaos', color: Colors.gold },
-  { key: 'hard', label: 'Feral', emoji: '🔥', desc: '12 items · pure madness', color: Colors.red },
+const DIFFICULTIES: { key: HuntDifficulty; label: string; emoji: string; color: string }[] = [
+  { key: 'easy', label: 'Chill', emoji: '🌿', color: Colors.green },
+  { key: 'medium', label: 'Honky', emoji: '🪿', color: Colors.gold },
+  { key: 'hard', label: 'Feral', emoji: '🔥', color: Colors.red },
 ];
 
 const PROMPT_SUGGESTIONS = [
-  'Dog-friendly things in the park',
+  'Dog-friendly things',
   'Things that are surprisingly old',
-  'Local street art and murals',
+  'Street art and murals',
   'Hidden gems only locals know',
-  'Things that start with the letter B',
+  'Things starting with the letter B',
   'Weird or funny signs',
-  'Nature stuff you can touch',
+  'Nature you can touch',
 ];
+
+const LOADING_MESSAGES = [
+  'Honking at the AI...',
+  'Ruffling feathers...',
+  'Waddling through ideas...',
+  'Stealing bread for inspiration...',
+  'Almost there...',
+];
+
+const MIN_STOPS = 3;
+const MAX_STOPS = 15;
 
 export default function CreateScreen() {
   const router = useRouter();
@@ -42,23 +53,45 @@ export default function CreateScreen() {
   const [location, setLocation] = useState('');
   const [prompt, setPrompt] = useState('');
   const [difficulty, setDifficulty] = useState<HuntDifficulty>('medium');
+  const [stopCount, setStopCount] = useState(6);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
   const canGenerate = location.trim().length > 2 && prompt.trim().length > 2;
+
+  const adjustStops = (delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStopCount((prev) => Math.min(MAX_STOPS, Math.max(MIN_STOPS, prev + delta)));
+  };
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsGenerating(true);
+    setLoadingMsg(LOADING_MESSAGES[0]);
+
+    // Cycle loading messages while waiting
+    let msgIndex = 0;
+    const msgInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length;
+      setLoadingMsg(LOADING_MESSAGES[msgIndex]);
+    }, 3000);
+
     try {
-      const hunt = await generateHunt({ location: location.trim(), prompt: prompt.trim(), difficulty });
+      const hunt = await generateHunt({
+        location: location.trim(),
+        prompt: prompt.trim(),
+        difficulty,
+        count: stopCount,
+      });
       await saveHunt(hunt);
       router.replace(`/hunt/${hunt.id}`);
     } catch (e: any) {
-      Alert.alert('Generation Failed', e.message || 'Could not generate the hunt. Check your connection and try again.', [
+      Alert.alert('Generation Failed', e.message || 'Could not generate the hunt. Try again.', [
         { text: 'OK' },
       ]);
     } finally {
+      clearInterval(msgInterval);
       setIsGenerating(false);
     }
   };
@@ -116,6 +149,31 @@ export default function CreateScreen() {
           </ScrollView>
         </View>
 
+        {/* Number of stops */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Number of stops</Text>
+          <View style={styles.stepperRow}>
+            <TouchableOpacity
+              style={[styles.stepperBtn, stopCount <= MIN_STOPS && styles.stepperBtnDisabled]}
+              onPress={() => adjustStops(-1)}
+              disabled={stopCount <= MIN_STOPS}
+            >
+              <FontAwesome name="minus" size={16} color={stopCount <= MIN_STOPS ? Colors.textMuted : Colors.text} />
+            </TouchableOpacity>
+            <View style={styles.stepperValue}>
+              <Text style={styles.stepperNumber}>{stopCount}</Text>
+              <Text style={styles.stepperUnit}>stops</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.stepperBtn, stopCount >= MAX_STOPS && styles.stepperBtnDisabled]}
+              onPress={() => adjustStops(1)}
+              disabled={stopCount >= MAX_STOPS}
+            >
+              <FontAwesome name="plus" size={16} color={stopCount >= MAX_STOPS ? Colors.textMuted : Colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Difficulty */}
         <View style={styles.section}>
           <Text style={styles.label}>Difficulty</Text>
@@ -125,10 +183,7 @@ export default function CreateScreen() {
               return (
                 <TouchableOpacity
                   key={d.key}
-                  style={[
-                    styles.diffCard,
-                    selected && { borderColor: d.color, backgroundColor: `${d.color}15` },
-                  ]}
+                  style={[styles.diffCard, selected && { borderColor: d.color, backgroundColor: `${d.color}15` }]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setDifficulty(d.key);
@@ -137,7 +192,6 @@ export default function CreateScreen() {
                 >
                   <Text style={styles.diffEmoji}>{d.emoji}</Text>
                   <Text style={[styles.diffLabel, selected && { color: d.color }]}>{d.label}</Text>
-                  <Text style={styles.diffDesc}>{d.desc}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -153,8 +207,8 @@ export default function CreateScreen() {
         >
           {isGenerating ? (
             <>
-              <ActivityIndicator color="#000" />
-              <Text style={styles.generateBtnText}>Hatching your hunt...</Text>
+              <ActivityIndicator color="#000" size="small" />
+              <Text style={styles.generateBtnText}>{loadingMsg}</Text>
             </>
           ) : (
             <>
@@ -174,53 +228,49 @@ const styles = StyleSheet.create({
   content: { padding: 20 },
 
   section: { marginBottom: 28 },
-  label: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
+  label: {
+    fontSize: 13, fontWeight: '700', color: Colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
+  },
 
   input: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 16,
-    color: Colors.text,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 16, fontSize: 16, color: Colors.text,
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
 
   suggestions: { gap: 8, paddingTop: 10, paddingRight: 4 },
   suggestion: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border,
   },
   suggestionText: { fontSize: 13, color: Colors.textSecondary },
 
+  stepperRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    backgroundColor: Colors.card, borderRadius: 14, borderWidth: 1,
+    borderColor: Colors.border, padding: 12, alignSelf: 'flex-start',
+  },
+  stepperBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  stepperBtnDisabled: { opacity: 0.4 },
+  stepperValue: { alignItems: 'center', minWidth: 60 },
+  stepperNumber: { fontSize: 32, fontWeight: '900', color: Colors.gold, lineHeight: 36 },
+  stepperUnit: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+
   diffRow: { flexDirection: 'row', gap: 10 },
   diffCard: {
-    flex: 1,
-    backgroundColor: Colors.card,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    padding: 14,
-    alignItems: 'center',
-    gap: 4,
+    flex: 1, backgroundColor: Colors.card, borderWidth: 1.5, borderColor: Colors.border,
+    borderRadius: 14, padding: 14, alignItems: 'center', gap: 6,
   },
   diffEmoji: { fontSize: 24 },
   diffLabel: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  diffDesc: { fontSize: 10, color: Colors.textSecondary, textAlign: 'center' },
 
   generateBtn: {
-    backgroundColor: Colors.gold,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-    gap: 10,
+    backgroundColor: Colors.gold, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', paddingVertical: 18, borderRadius: 16, gap: 10,
   },
   generateBtnDisabled: { opacity: 0.4 },
   generateBtnIcon: { fontSize: 20 },
