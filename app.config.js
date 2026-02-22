@@ -25,7 +25,7 @@ export default {
     android: {
       package: 'com.lootgoose.app',
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
+        foregroundImage: './assets/icon.png',
         backgroundColor: '#0D1117',
       },
       config: {
