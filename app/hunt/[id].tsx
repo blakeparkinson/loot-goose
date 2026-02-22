@@ -16,7 +16,7 @@ import { useAppStore, hintPenalty } from '@/lib/store';
 import { HuntItem } from '@/lib/types';
 import { geocodeQuery } from '@/lib/geocoding';
 import { openNativeMapsDirections, openMapsSearch } from '@/lib/navigation';
-import { swapItem } from '@/lib/api';
+import { swapItem, insertItem } from '@/lib/api';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -33,9 +33,11 @@ export default function HuntScreen() {
   const updateItemCoords = useAppStore((s) => s.updateItemCoords);
   const replaceItem = useAppStore((s) => s.replaceItem);
   const revealHint = useAppStore((s) => s.revealHint);
+  const insertItemAfter = useAppStore((s) => s.insertItemAfter);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [swappingId, setSwappingId] = useState<string | null>(null);
   const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
+  const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
@@ -109,6 +111,38 @@ export default function HuntScreen() {
     );
   };
 
+  const handleInsert = (afterItem: HuntItem, beforeItem: HuntItem) => {
+    Alert.alert(
+      'Add a Stop?',
+      `Add a new stop between "${afterItem.name}" and "${beforeItem.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add Stop',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setInsertingAfterId(afterItem.id);
+            try {
+              const newItem = await insertItem({
+                location: hunt!.location,
+                prompt: hunt!.prompt,
+                difficulty: hunt!.difficulty,
+                existingItemNames: hunt!.items.map((i) => i.name),
+                beforeStop: afterItem.sublocation ?? afterItem.name,
+                afterStop: beforeItem.sublocation ?? beforeItem.name,
+              });
+              await insertItemAfter(hunt!.id, afterItem.id, newItem);
+            } catch (e: any) {
+              Alert.alert('Failed', e.message ?? 'Could not generate a new stop.');
+            } finally {
+              setInsertingAfterId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleSwap = (item: HuntItem) => {
     Alert.alert(
       'Swap Task?',
@@ -142,7 +176,45 @@ export default function HuntScreen() {
     );
   };
 
-  const renderItem = ({ item, index }: { item: HuntItem; index: number }) => {
+  // Build interleaved list: item rows + "+" separators between consecutive incomplete stops
+  type ListRow =
+    | { type: 'item'; item: HuntItem; index: number }
+    | { type: 'insert'; afterItem: HuntItem; beforeItem: HuntItem; key: string };
+
+  const listData: ListRow[] = [];
+  hunt.items.forEach((item, i) => {
+    listData.push({ type: 'item', item, index: i });
+    const next = hunt.items[i + 1];
+    if (next && !item.completed && !next.completed) {
+      listData.push({ type: 'insert', afterItem: item, beforeItem: next, key: `insert-${item.id}-${next.id}` });
+    }
+  });
+
+  const renderRow = ({ item: row }: { item: ListRow }) => {
+    if (row.type === 'insert') {
+      const isInserting = insertingAfterId === row.afterItem.id;
+      return (
+        <TouchableOpacity
+          style={styles.insertRow}
+          onPress={() => handleInsert(row.afterItem, row.beforeItem)}
+          disabled={isInserting || insertingAfterId !== null}
+          activeOpacity={0.7}
+        >
+          <View style={styles.insertLine} />
+          {isInserting ? (
+            <ActivityIndicator size="small" color={Colors.purple} style={styles.insertIcon} />
+          ) : (
+            <View style={styles.insertPill}>
+              <FontAwesome name="plus" size={10} color={Colors.purple} />
+              <Text style={styles.insertPillText}>Add stop</Text>
+            </View>
+          )}
+          <View style={styles.insertLine} />
+        </TouchableOpacity>
+      );
+    }
+
+    const { item, index } = row;
     const isNavigating = navigatingId === item.id;
     const isSwapping = swappingId === item.id;
     const isRevealingHint = revealingHintId === item.id;
@@ -244,7 +316,7 @@ export default function HuntScreen() {
         </View>
       </View>
     );
-  };
+  };  // close renderRow
 
   const Header = () => (
     <View>
@@ -304,9 +376,9 @@ export default function HuntScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={hunt.items}
-        keyExtractor={(i) => i.id}
-        renderItem={renderItem}
+        data={listData}
+        keyExtractor={(row) => row.type === 'item' ? row.item.id : row.key}
+        renderItem={renderRow}
         ListHeaderComponent={Header}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -398,6 +470,20 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.goldLight,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  insertRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 2, marginBottom: 2,
+  },
+  insertLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  insertPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+    borderWidth: 1, borderColor: `${Colors.purple}55`,
+    backgroundColor: `${Colors.purple}10`,
+  },
+  insertPillText: { fontSize: 12, fontWeight: '700', color: Colors.purple },
+  insertIcon: { paddingHorizontal: 12 },
 
   deleteBtn: {
     position: 'absolute', bottom: 20, alignSelf: 'center', flexDirection: 'row',

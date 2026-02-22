@@ -93,6 +93,33 @@ export async function verifyPhoto(params: {
   return callEdgeFunction('verify-item', params);
 }
 
+export async function insertItem(params: {
+  location: string;
+  prompt: string;
+  difficulty: HuntDifficulty;
+  existingItemNames: string[];
+  beforeStop: string;
+  afterStop: string;
+}): Promise<HuntItem> {
+  const { location, prompt, difficulty, existingItemNames, beforeStop, afterStop } = params;
+  const [minPts, maxPts] = POINT_RANGE[difficulty];
+
+  const data = await callEdgeFunction('insert-item', {
+    location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop,
+  });
+
+  return {
+    id: `item-${Date.now()}-insert`,
+    name: data.name,
+    description: data.description,
+    hint: data.hint,
+    points: data.points,
+    completed: false,
+    sublocation: data.sublocation,
+    geocodeQuery: data.geocodeQuery,
+  };
+}
+
 export async function swapItem(params: {
   location: string;
   prompt: string;

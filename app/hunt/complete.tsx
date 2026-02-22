@@ -59,8 +59,8 @@ export default function HuntCompleteScreen() {
     // Continuous goose bounce
     const bounceLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(gooseBounce, { toValue: -18, duration: 500, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
-        Animated.timing(gooseBounce, { toValue: 0, duration: 500, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
+        Animated.timing(gooseBounce, { toValue: -18, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(gooseBounce, { toValue: 0, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     bounceLoop.start();
@@ -68,8 +68,8 @@ export default function HuntCompleteScreen() {
     // Glow pulse
     const glowLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sine), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     glowLoop.start();

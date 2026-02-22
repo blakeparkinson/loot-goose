@@ -46,7 +46,7 @@ const LOADING_MESSAGES = [
 ];
 
 const MIN_STOPS = 3;
-const MAX_STOPS = 15;
+const MAX_STOPS = 25;
 
 export default function CreateScreen() {
   const router = useRouter();

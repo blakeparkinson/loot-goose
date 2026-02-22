@@ -24,6 +24,7 @@ interface AppStore {
   revealHint: (huntId: string, itemId: string) => Promise<void>;
   updateItemCoords: (huntId: string, itemId: string, coords: Coords) => Promise<void>;
   replaceItem: (huntId: string, itemId: string, newItem: HuntItem) => Promise<void>;
+  insertItemAfter: (huntId: string, afterItemId: string, newItem: HuntItem) => Promise<void>;
   getHunt: (huntId: string) => Hunt | undefined;
 }
 
@@ -117,6 +118,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const hunt = hunts.find((h) => h.id === huntId);
     if (!hunt) return;
     const updatedItems = hunt.items.map((i) => (i.id === itemId ? newItem : i));
+    await saveHunt({
+      ...hunt,
+      items: updatedItems,
+      totalPoints: updatedItems.reduce((sum, i) => sum + i.points, 0),
+      earnedPoints: earnedPointsFor(updatedItems),
+    });
+  },
+
+  insertItemAfter: async (huntId, afterItemId, newItem) => {
+    const { hunts, saveHunt } = get();
+    const hunt = hunts.find((h) => h.id === huntId);
+    if (!hunt) return;
+    const afterIndex = hunt.items.findIndex((i) => i.id === afterItemId);
+    const updatedItems = [...hunt.items];
+    updatedItems.splice(afterIndex + 1, 0, newItem);
     await saveHunt({
       ...hunt,
       items: updatedItems,
