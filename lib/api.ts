@@ -100,12 +100,13 @@ export async function insertItem(params: {
   existingItemNames: string[];
   beforeStop: string;
   afterStop: string;
+  customPrompt?: string;
 }): Promise<HuntItem> {
-  const { location, prompt, difficulty, existingItemNames, beforeStop, afterStop } = params;
+  const { location, prompt, difficulty, existingItemNames, beforeStop, afterStop, customPrompt } = params;
   const [minPts, maxPts] = POINT_RANGE[difficulty];
 
   const data = await callEdgeFunction('insert-item', {
-    location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop,
+    location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop, customPrompt,
   });
 
   return {
@@ -125,11 +126,12 @@ export async function swapItem(params: {
   prompt: string;
   difficulty: HuntDifficulty;
   existingItemNames: string[];
+  customPrompt?: string;
 }): Promise<HuntItem> {
-  const { location, prompt, difficulty, existingItemNames } = params;
+  const { location, prompt, difficulty, existingItemNames, customPrompt } = params;
   const [minPts, maxPts] = POINT_RANGE[difficulty];
 
-  const data = await callEdgeFunction('swap-item', { location, prompt, minPts, maxPts, existingItemNames });
+  const data = await callEdgeFunction('swap-item', { location, prompt, minPts, maxPts, existingItemNames, customPrompt });
 
   return {
     id: `item-${Date.now()}-swap`,

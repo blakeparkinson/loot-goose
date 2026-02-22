@@ -11,11 +11,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { location, prompt, minPts, maxPts, existingItemNames } = await req.json();
+    const { location, prompt, minPts, maxPts, existingItemNames, customPrompt } = await req.json();
 
     const avoidList = Array.isArray(existingItemNames) && existingItemNames.length > 0
-      ? `\n\nDo NOT generate any of these already-existing items: ${existingItemNames.join(', ')}`
+      ? `\n\nDo NOT duplicate any of these existing stops: ${existingItemNames.join(', ')}`
       : '';
+
+    const whatToFind = customPrompt
+      ? `Specific request: ${customPrompt}\nHunt theme for context: ${prompt}`
+      : `Theme: ${prompt}`;
 
     const response = await client.chat.completions.create({
       model: 'gpt-4o',
@@ -23,27 +27,30 @@ Deno.serve(async (req) => {
       messages: [
         {
           role: 'system',
-          content: 'You are Loot Goose, a fun AI that creates scavenger hunt items. Always respond with valid JSON only.',
+          content: 'You are Loot Goose, a fun AI that creates scavenger hunt stops. Always respond with valid JSON only.',
         },
         {
           role: 'user',
-          content: `Generate ONE new scavenger hunt item for the following:
+          content: `Generate ONE new scavenger hunt stop to replace an existing one:
 
-Location: ${location}
-Theme: ${prompt}
+Location/area: ${location}
+${whatToFind}
 Points range: ${minPts}-${maxPts}${avoidList}
+
+Rules:
+- Must be a REAL, NAMED, SPECIFIC place (actual business, landmark, or named feature).
+- sublocation = real name + address of the place.
+- geocodeQuery must be precise enough to find it on OpenStreetMap.
 
 Return JSON in this exact format:
 {
-  "name": "Short item name (3-5 words)",
-  "description": "What to find and why (1-2 sentences)",
+  "name": "Short stop name (3-6 words)",
+  "description": "What to find at this real place and why it fits (1-2 sentences)",
   "hint": "A helpful but not too easy hint",
   "points": <number between ${minPts} and ${maxPts}>,
-  "sublocation": "Specific named spot within the location",
-  "geocodeQuery": "Precise search query for geocoding this spot"
-}
-
-Make it fun, achievable, specific to the location and theme. Be creative and slightly silly.`,
+  "sublocation": "Real place name + address",
+  "geocodeQuery": "Precise OSM query"
+}`,
         },
       ],
     });

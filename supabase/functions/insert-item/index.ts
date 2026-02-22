@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop } = await req.json();
+    const { location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop, customPrompt } = await req.json();
 
     const avoidList = Array.isArray(existingItemNames) && existingItemNames.length > 0
       ? `\n\nDo NOT duplicate any of these existing stops: ${existingItemNames.join(', ')}`
@@ -20,6 +20,10 @@ Deno.serve(async (req) => {
     const betweenLine = beforeStop && afterStop
       ? `\nThis stop must be geographically located BETWEEN "${beforeStop}" and "${afterStop}" on the route — pick a real place that a person would naturally pass through when traveling from one to the other.`
       : '';
+
+    const whatToFind = customPrompt
+      ? `Specific request: ${customPrompt}\nHunt theme for context: ${prompt}`
+      : `Theme: ${prompt}`;
 
     const response = await client.chat.completions.create({
       model: 'gpt-4o',
@@ -34,7 +38,7 @@ Deno.serve(async (req) => {
           content: `Generate ONE new scavenger hunt stop to insert into an existing route:
 
 Location/area: ${location}
-Theme: ${prompt}
+${whatToFind}
 Points range: ${minPts}-${maxPts}${betweenLine}${avoidList}
 
 Rules:

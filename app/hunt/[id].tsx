@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -38,6 +42,13 @@ export default function HuntScreen() {
   const [swappingId, setSwappingId] = useState<string | null>(null);
   const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
   const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
+
+  // Stop prompt modal
+  type PendingAction =
+    | { type: 'swap'; item: HuntItem }
+    | { type: 'insert'; afterItem: HuntItem; beforeItem: HuntItem };
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [stopPrompt, setStopPrompt] = useState('');
 
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
@@ -112,68 +123,58 @@ export default function HuntScreen() {
   };
 
   const handleInsert = (afterItem: HuntItem, beforeItem: HuntItem) => {
-    Alert.alert(
-      'Add a Stop?',
-      `Add a new stop between "${afterItem.name}" and "${beforeItem.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add Stop',
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setInsertingAfterId(afterItem.id);
-            try {
-              const newItem = await insertItem({
-                location: hunt!.location,
-                prompt: hunt!.prompt,
-                difficulty: hunt!.difficulty,
-                existingItemNames: hunt!.items.map((i) => i.name),
-                beforeStop: afterItem.sublocation ?? afterItem.name,
-                afterStop: beforeItem.sublocation ?? beforeItem.name,
-              });
-              await insertItemAfter(hunt!.id, afterItem.id, newItem);
-            } catch (e: any) {
-              Alert.alert('Failed', e.message ?? 'Could not generate a new stop.');
-            } finally {
-              setInsertingAfterId(null);
-            }
-          },
-        },
-      ],
-    );
+    setStopPrompt('');
+    setPendingAction({ type: 'insert', afterItem, beforeItem });
   };
 
   const handleSwap = (item: HuntItem) => {
-    Alert.alert(
-      'Swap Task?',
-      `Replace "${item.name}" with a new one? This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Swap It',
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setSwappingId(item.id);
-            try {
-              const existingNames = hunt!.items
-                .filter((i) => i.id !== item.id)
-                .map((i) => i.name);
-              const newItem = await swapItem({
-                location: hunt!.location,
-                prompt: hunt!.prompt,
-                difficulty: hunt!.difficulty,
-                existingItemNames: existingNames,
-              });
-              await replaceItem(hunt!.id, item.id, newItem);
-            } catch (e: any) {
-              Alert.alert('Swap Failed', e.message ?? 'Something went wrong.');
-            } finally {
-              setSwappingId(null);
-            }
-          },
-        },
-      ],
-    );
+    setStopPrompt('');
+    setPendingAction({ type: 'swap', item });
+  };
+
+  const handleConfirmStopPrompt = async () => {
+    if (!pendingAction) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const customPrompt = stopPrompt.trim() || undefined;
+    setPendingAction(null);
+
+    if (pendingAction.type === 'swap') {
+      const { item } = pendingAction;
+      setSwappingId(item.id);
+      try {
+        const newItem = await swapItem({
+          location: hunt!.location,
+          prompt: hunt!.prompt,
+          difficulty: hunt!.difficulty,
+          existingItemNames: hunt!.items.filter((i) => i.id !== item.id).map((i) => i.name),
+          customPrompt,
+        });
+        await replaceItem(hunt!.id, item.id, newItem);
+      } catch (e: any) {
+        Alert.alert('Swap Failed', e.message ?? 'Something went wrong.');
+      } finally {
+        setSwappingId(null);
+      }
+    } else {
+      const { afterItem, beforeItem } = pendingAction;
+      setInsertingAfterId(afterItem.id);
+      try {
+        const newItem = await insertItem({
+          location: hunt!.location,
+          prompt: hunt!.prompt,
+          difficulty: hunt!.difficulty,
+          existingItemNames: hunt!.items.map((i) => i.name),
+          beforeStop: afterItem.sublocation ?? afterItem.name,
+          afterStop: beforeItem.sublocation ?? beforeItem.name,
+          customPrompt,
+        });
+        await insertItemAfter(hunt!.id, afterItem.id, newItem);
+      } catch (e: any) {
+        Alert.alert('Failed', e.message ?? 'Could not generate a new stop.');
+      } finally {
+        setInsertingAfterId(null);
+      }
+    }
   };
 
   // Build interleaved list: item rows + "+" separators between consecutive incomplete stops
@@ -373,6 +374,12 @@ export default function HuntScreen() {
     </View>
   );
 
+  const isInsertAction = pendingAction?.type === 'insert';
+  const modalTitle = isInsertAction ? 'Add a Stop' : 'Swap Stop';
+  const modalSubtitle = isInsertAction
+    ? `Between "${(pendingAction as any).afterItem?.name}" and "${(pendingAction as any).beforeItem?.name}"`
+    : `Replacing "${(pendingAction as any)?.item?.name}"`;
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -388,6 +395,53 @@ export default function HuntScreen() {
         <FontAwesome name="trash" size={14} color={Colors.red} />
         <Text style={styles.deleteBtnText}>Delete Hunt</Text>
       </TouchableOpacity>
+
+      {/* Stop prompt modal */}
+      <Modal
+        visible={!!pendingAction}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingAction(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+            <Text style={styles.modalSubtitle} numberOfLines={2}>{modalSubtitle}</Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder={`What kind of stop? (optional)\ne.g. a great coffee shop, street art, something historic…`}
+              placeholderTextColor={Colors.textMuted}
+              value={stopPrompt}
+              onChangeText={setStopPrompt}
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
+              autoFocus
+            />
+            <Text style={styles.modalHint}>Leave blank to use the hunt theme.</Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setPendingAction(null)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmStopPrompt}
+              >
+                <FontAwesome name="magic" size={13} color="#000" />
+                <Text style={styles.modalConfirmText}>Generate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -470,6 +524,36 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.goldLight,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 36,
+    borderTopWidth: 1, borderColor: Colors.border,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
+  modalInput: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 14, fontSize: 15, color: Colors.text,
+    minHeight: 72, textAlignVertical: 'top',
+  },
+  modalHint: { fontSize: 12, color: Colors.textMuted, marginTop: 6, marginBottom: 20 },
+  modalButtons: { flexDirection: 'row', gap: 10 },
+  modalCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 15, fontWeight: '700', color: Colors.textSecondary },
+  modalConfirmBtn: {
+    flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center',
+  },
+  modalConfirmText: { fontSize: 15, fontWeight: '800', color: '#000' },
 
   insertRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
