@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,12 @@ import {
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import Colors from '@/constants/Colors';
 import { HuntDifficulty } from '@/lib/types';
 import { generateHunt } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
+import { fetchWeather, WeatherInfo } from '@/lib/weather';
 
 const DIFFICULTIES: { key: HuntDifficulty; label: string; emoji: string; color: string }[] = [
   { key: 'easy', label: 'Chill', emoji: '🌿', color: Colors.green },
@@ -56,6 +58,18 @@ export default function CreateScreen() {
   const [stopCount, setStopCount] = useState(6);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+
+  // Silently fetch weather for user's current GPS position on mount
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const info = await fetchWeather({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      setWeather(info);
+    })();
+  }, []);
 
   const canGenerate = location.trim().length > 2 && prompt.trim().length > 2;
 
@@ -70,7 +84,6 @@ export default function CreateScreen() {
     setIsGenerating(true);
     setLoadingMsg(LOADING_MESSAGES[0]);
 
-    // Cycle loading messages while waiting
     let msgIndex = 0;
     const msgInterval = setInterval(() => {
       msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length;
@@ -83,6 +96,7 @@ export default function CreateScreen() {
         prompt: prompt.trim(),
         difficulty,
         count: stopCount,
+        weather: weather?.context,
       });
       await saveHunt(hunt);
       router.replace(`/hunt/${hunt.id}`);
@@ -107,6 +121,15 @@ export default function CreateScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Weather chip */}
+        {weather && (
+          <View style={styles.weatherChip}>
+            <Text style={styles.weatherEmoji}>{weather.emoji}</Text>
+            <Text style={styles.weatherLabel}>{weather.label}</Text>
+            <Text style={styles.weatherNote}>· hunt will adapt</Text>
+          </View>
+        )}
+
         {/* Location */}
         <View style={styles.section}>
           <Text style={styles.label}>Where are you?</Text>
@@ -226,6 +249,23 @@ export default function CreateScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 20 },
+
+  weatherChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignSelf: 'flex-start',
+  },
+  weatherEmoji: { fontSize: 16 },
+  weatherLabel: { fontSize: 13, color: Colors.text, fontWeight: '600' },
+  weatherNote: { fontSize: 12, color: Colors.textMuted },
 
   section: { marginBottom: 28 },
   label: {

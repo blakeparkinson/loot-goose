@@ -14,7 +14,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import Colors from '@/constants/Colors';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, hintPenalty } from '@/lib/store';
 import { verifyPhoto } from '@/lib/api';
 
 export default function CameraScreen() {
@@ -22,14 +22,14 @@ export default function CameraScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const getHunt = useAppStore((s) => s.getHunt);
+  const hunt = useAppStore((s) => s.hunts.find((h) => h.id === huntId));
   const completeItem = useAppStore((s) => s.completeItem);
+  const revealHint = useAppStore((s) => s.revealHint);
 
+  const [isRevealingHint, setIsRevealingHint] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const hunt = getHunt(huntId);
   const item = hunt?.items.find((i) => i.id === itemId);
 
   useEffect(() => {
@@ -58,6 +58,30 @@ export default function CameraScreen() {
     );
   }
 
+  const handleRevealHint = () => {
+    if (!item) return;
+    const penalty = hintPenalty({ ...item, hintRevealed: true });
+    Alert.alert(
+      'Reveal Hint?',
+      `This will cost you ${penalty} pts at completion.`,
+      [
+        { text: 'Keep it locked', style: 'cancel' },
+        {
+          text: `Reveal (−${penalty}pts)`,
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setIsRevealingHint(true);
+            try {
+              await revealHint(huntId, itemId);
+            } finally {
+              setIsRevealingHint(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing || isVerifying) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -81,7 +105,12 @@ export default function CameraScreen() {
 
       if (verification.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const isLastItem = hunt.items.filter((i) => !i.completed && i.id !== itemId).length === 0;
         await completeItem(huntId, itemId, photo.uri, verification.message);
+        if (isLastItem) {
+          router.replace({ pathname: '/hunt/complete', params: { id: huntId } });
+          return;
+        }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -117,10 +146,31 @@ export default function CameraScreen() {
         </View>
 
         {/* Hint */}
-        <View style={styles.hintBar}>
-          <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
-          <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
-        </View>
+        {item.hintRevealed ? (
+          <View style={styles.hintBar}>
+            <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
+            <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
+            <View style={styles.hintPenaltyBadge}>
+              <Text style={styles.hintPenaltyText}>−{hintPenalty(item)}pts</Text>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.hintBar, styles.hintBarLocked]}
+            onPress={handleRevealHint}
+            disabled={isRevealingHint}
+            activeOpacity={0.7}
+          >
+            {isRevealingHint ? (
+              <ActivityIndicator size="small" color={Colors.gold} />
+            ) : (
+              <FontAwesome name="lock" size={13} color={Colors.gold} />
+            )}
+            <Text style={styles.hintText} numberOfLines={1}>
+              {isRevealingHint ? 'Revealing...' : `Tap to reveal hint · −${hintPenalty({ ...item, hintRevealed: true })}pts`}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Result overlay */}
         {result && (
@@ -199,6 +249,11 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.gold}44`,
   },
   hintText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
+  hintBarLocked: { opacity: 0.85 },
+  hintPenaltyBadge: {
+    backgroundColor: 'rgba(248,81,73,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  hintPenaltyText: { fontSize: 10, fontWeight: '700', color: '#f85149' },
 
   captureRow: {
     position: 'absolute',

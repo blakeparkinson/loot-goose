@@ -12,10 +12,11 @@ import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, hintPenalty } from '@/lib/store';
 import { HuntItem } from '@/lib/types';
 import { geocodeQuery } from '@/lib/geocoding';
-import { openNativeMaps, openMapsSearch } from '@/lib/navigation';
+import { openNativeMapsDirections, openMapsSearch } from '@/lib/navigation';
+import { swapItem } from '@/lib/api';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -27,12 +28,14 @@ export default function HuntScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
-  const getHunt = useAppStore((s) => s.getHunt);
+  const hunt = useAppStore((s) => s.hunts.find((h) => h.id === id));
   const deleteHunt = useAppStore((s) => s.deleteHunt);
   const updateItemCoords = useAppStore((s) => s.updateItemCoords);
-
-  const hunt = getHunt(id);
+  const replaceItem = useAppStore((s) => s.replaceItem);
+  const revealHint = useAppStore((s) => s.revealHint);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
+  const [swappingId, setSwappingId] = useState<string | null>(null);
+  const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
@@ -74,7 +77,7 @@ export default function HuntScreen() {
         if (coords) await updateItemCoords(hunt.id, item.id, coords);
       }
       if (coords) {
-        await openNativeMaps(coords, `${item.name} — ${hunt.title}`);
+        await openNativeMapsDirections(coords);
       } else {
         await openMapsSearch(`${item.sublocation ?? item.name}, ${hunt.location}`);
       }
@@ -83,8 +86,67 @@ export default function HuntScreen() {
     }
   };
 
+  const handleRevealHint = (item: HuntItem) => {
+    const penalty = hintPenalty({ ...item, hintRevealed: true });
+    Alert.alert(
+      'Reveal Hint?',
+      `Revealing the hint costs you ${penalty} pts at completion. Worth it?`,
+      [
+        { text: 'Keep it locked', style: 'cancel' },
+        {
+          text: `Reveal (−${penalty}pts)`,
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setRevealingHintId(item.id);
+            try {
+              await revealHint(hunt!.id, item.id);
+            } finally {
+              setRevealingHintId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleSwap = (item: HuntItem) => {
+    Alert.alert(
+      'Swap Task?',
+      `Replace "${item.name}" with a new one? This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Swap It',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setSwappingId(item.id);
+            try {
+              const existingNames = hunt!.items
+                .filter((i) => i.id !== item.id)
+                .map((i) => i.name);
+              const newItem = await swapItem({
+                location: hunt!.location,
+                prompt: hunt!.prompt,
+                difficulty: hunt!.difficulty,
+                existingItemNames: existingNames,
+              });
+              await replaceItem(hunt!.id, item.id, newItem);
+            } catch (e: any) {
+              Alert.alert('Swap Failed', e.message ?? 'Something went wrong.');
+            } finally {
+              setSwappingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderItem = ({ item, index }: { item: HuntItem; index: number }) => {
     const isNavigating = navigatingId === item.id;
+    const isSwapping = swappingId === item.id;
+    const isRevealingHint = revealingHintId === item.id;
+    const penalty = hintPenalty({ ...item, hintRevealed: true });
     return (
       <View style={[styles.itemCard, item.completed && styles.itemCardDone]}>
         <View style={styles.itemLeft}>
@@ -106,9 +168,30 @@ export default function HuntScreen() {
               </Text>
             )}
             {!item.completed && (
-              <Text style={styles.itemHint} numberOfLines={1}>
-                <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} /> {item.hint}
-              </Text>
+              item.hintRevealed ? (
+                <View style={styles.hintRow}>
+                  <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} />
+                  <Text style={styles.itemHint} numberOfLines={2}>{item.hint}</Text>
+                  <View style={styles.hintPenaltyBadge}>
+                    <Text style={styles.hintPenaltyText}>−{penalty}pts</Text>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.hintLocked}
+                  onPress={() => handleRevealHint(item)}
+                  disabled={isRevealingHint}
+                >
+                  {isRevealingHint ? (
+                    <ActivityIndicator size="small" color={Colors.gold} />
+                  ) : (
+                    <>
+                      <FontAwesome name="lock" size={11} color={Colors.gold} />
+                      <Text style={styles.hintLockedText}>Reveal hint · −{penalty}pts</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )
             )}
             {item.completed && item.verificationNote ? (
               <Text style={styles.verificationNote} numberOfLines={1}>
@@ -119,10 +202,21 @@ export default function HuntScreen() {
         </View>
         <View style={styles.itemRight}>
           <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
-            {item.points}pts
+            {item.completed ? item.points - hintPenalty(item) : item.points}pts
           </Text>
           {!item.completed && (
             <View style={styles.itemActions}>
+              <TouchableOpacity
+                style={styles.swapBtn}
+                onPress={() => handleSwap(item)}
+                disabled={isSwapping || swappingId !== null}
+              >
+                {isSwapping ? (
+                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                ) : (
+                  <FontAwesome name="refresh" size={13} color={Colors.textSecondary} />
+                )}
+              </TouchableOpacity>
               {(item.sublocation || item.geocodeQuery) && (
                 <TouchableOpacity
                   style={styles.navigateBtn}
@@ -178,9 +272,16 @@ export default function HuntScreen() {
         </View>
 
         {pct === 100 && (
-          <View style={styles.completedBanner}>
-            <Text style={styles.completedBannerText}>🎉 Hunt Complete! You're a Loot Goose legend.</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.completedBanner}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/hunt/complete', params: { id: hunt.id } });
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.completedBannerText}>🎉 Hunt Complete! Tap to view results →</Text>
+          </TouchableOpacity>
         )}
 
         {/* Map button */}
@@ -268,12 +369,27 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
   itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
   itemSublocation: { fontSize: 12, color: Colors.blue, marginBottom: 3 },
-  itemHint: { fontSize: 12, color: Colors.gold },
+  itemHint: { fontSize: 12, color: Colors.gold, flex: 1 },
+
+  hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 2 },
+  hintPenaltyBadge: { backgroundColor: `${Colors.red}22`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
+  hintPenaltyText: { fontSize: 10, fontWeight: '700', color: Colors.red },
+
+  hintLocked: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2,
+    backgroundColor: `${Colors.gold}15`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+    alignSelf: 'flex-start', borderWidth: 1, borderColor: `${Colors.gold}30`,
+  },
+  hintLockedText: { fontSize: 12, color: Colors.gold, fontWeight: '600' },
   verificationNote: { fontSize: 12, color: Colors.green },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
   itemActions: { flexDirection: 'row', gap: 6 },
+  swapBtn: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
   navigateBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.blueLight,
     alignItems: 'center', justifyContent: 'center',

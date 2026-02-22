@@ -5,8 +5,10 @@ export async function openNativeMaps(coords: Coords, label: string): Promise<voi
   const { latitude, longitude } = coords;
   const encodedLabel = encodeURIComponent(label);
 
+  // iOS: standard Apple Maps URL — pin at coords with label
+  // Android: geo URI with query label
   const url = Platform.select({
-    ios: `maps://app?daddr=${latitude},${longitude}&q=${encodedLabel}`,
+    ios: `maps://maps.apple.com/?ll=${latitude},${longitude}&q=${encodedLabel}`,
     android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
     default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
   })!;
@@ -16,7 +18,26 @@ export async function openNativeMaps(coords: Coords, label: string): Promise<voi
     await Linking.openURL(url);
   } else {
     await Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+      `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&query_place_id=${encodedLabel}`
+    );
+  }
+}
+
+export async function openNativeMapsDirections(coords: Coords): Promise<void> {
+  const { latitude, longitude } = coords;
+
+  const url = Platform.select({
+    ios: `maps://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=w`,
+    android: `google.navigation:q=${latitude},${longitude}&mode=w`,
+    default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`,
+  })!;
+
+  const canOpen = await Linking.canOpenURL(url);
+  if (canOpen) {
+    await Linking.openURL(url);
+  } else {
+    await Linking.openURL(
+      `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`
     );
   }
 }
@@ -24,7 +45,7 @@ export async function openNativeMaps(coords: Coords, label: string): Promise<voi
 export async function openMapsSearch(query: string): Promise<void> {
   const encoded = encodeURIComponent(query);
   const url = Platform.select({
-    ios: `maps://app?q=${encoded}`,
+    ios: `maps://maps.apple.com/?q=${encoded}`,
     android: `geo:0,0?q=${encoded}`,
     default: `https://maps.google.com/maps?q=${encoded}`,
   })!;

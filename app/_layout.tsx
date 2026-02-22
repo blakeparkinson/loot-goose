@@ -4,17 +4,19 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import Colors from '@/constants/Colors';
 import GooseSplash from '@/components/GooseSplash';
+import { useAppStore } from '@/lib/store';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
+  const loadHunts = useAppStore((s) => s.loadHunts);
 
   useEffect(() => {
-    // Simulate any async init here (fonts, stores, etc.)
     const prepare = async () => {
       try {
+        await loadHunts();
         await SplashScreen.hideAsync();
       } finally {
         setAppReady(true);
@@ -50,6 +52,7 @@ export default function RootLayout() {
         <Stack.Screen name="create" options={{ title: 'New Hunt', presentation: 'modal' }} />
         <Stack.Screen name="hunt/[id]" options={{ title: 'Hunt' }} />
         <Stack.Screen name="hunt/map" options={{ title: 'Stop Map' }} />
+        <Stack.Screen name="hunt/complete" options={{ headerShown: false }} />
         <Stack.Screen
           name="camera"
           options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}

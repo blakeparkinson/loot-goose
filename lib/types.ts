@@ -18,6 +18,7 @@ export interface HuntItem {
   sublocation?: string;    // e.g. "near the Bethesda Fountain"
   geocodeQuery?: string;   // precise query for Nominatim
   coords?: Coords;         // populated lazily on navigate tap
+  hintRevealed?: boolean;  // true once user pays the point penalty
 }
 
 export interface Hunt {
@@ -31,5 +32,6 @@ export interface Hunt {
   totalPoints: number;
   earnedPoints: number;
   createdAt: string;
+  startedAt?: string;    // set when first item is completed
   completedAt?: string;
 }

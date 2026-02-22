@@ -43,8 +43,9 @@ export async function generateHunt(params: {
   prompt: string;
   difficulty: HuntDifficulty;
   count: number;
+  weather?: string;
 }): Promise<Hunt> {
-  const { location, prompt, difficulty, count } = params;
+  const { location, prompt, difficulty, count, weather } = params;
   const [minPts, maxPts] = POINT_RANGE[difficulty];
 
   const data = await callEdgeFunction('generate-hunt', {
@@ -53,6 +54,7 @@ export async function generateHunt(params: {
     count,
     minPts,
     maxPts,
+    weather,
   });
 
   const items: HuntItem[] = (data.items as any[]).map((item, i) => ({
@@ -89,4 +91,27 @@ export async function verifyPhoto(params: {
   location: string;
 }): Promise<{ success: boolean; message: string }> {
   return callEdgeFunction('verify-item', params);
+}
+
+export async function swapItem(params: {
+  location: string;
+  prompt: string;
+  difficulty: HuntDifficulty;
+  existingItemNames: string[];
+}): Promise<HuntItem> {
+  const { location, prompt, difficulty, existingItemNames } = params;
+  const [minPts, maxPts] = POINT_RANGE[difficulty];
+
+  const data = await callEdgeFunction('swap-item', { location, prompt, minPts, maxPts, existingItemNames });
+
+  return {
+    id: `item-${Date.now()}-swap`,
+    name: data.name,
+    description: data.description,
+    hint: data.hint,
+    points: data.points,
+    completed: false,
+    sublocation: data.sublocation,
+    geocodeQuery: data.geocodeQuery,
+  };
 }

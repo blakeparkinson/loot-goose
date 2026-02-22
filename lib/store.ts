@@ -4,13 +4,26 @@ import { Hunt, HuntItem, Coords } from './types';
 
 const HUNTS_KEY = 'lootgoose_hunts';
 
+// Points deducted when a hint is revealed (applied at completion time)
+export function hintPenalty(item: HuntItem): number {
+  return item.hintRevealed ? Math.max(5, Math.round(item.points * 0.25)) : 0;
+}
+
+function earnedPointsFor(items: HuntItem[]): number {
+  return items
+    .filter((i) => i.completed)
+    .reduce((sum, i) => sum + i.points - hintPenalty(i), 0);
+}
+
 interface AppStore {
   hunts: Hunt[];
   loadHunts: () => Promise<void>;
   saveHunt: (hunt: Hunt) => Promise<void>;
   deleteHunt: (huntId: string) => Promise<void>;
   completeItem: (huntId: string, itemId: string, photoUri: string, verificationNote: string) => Promise<void>;
+  revealHint: (huntId: string, itemId: string) => Promise<void>;
   updateItemCoords: (huntId: string, itemId: string, coords: Coords) => Promise<void>;
+  replaceItem: (huntId: string, itemId: string, newItem: HuntItem) => Promise<void>;
   getHunt: (huntId: string) => Hunt | undefined;
 }
 
@@ -59,19 +72,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const item = hunt.items.find((i) => i.id === itemId);
     if (!item || item.completed) return;
 
+    const now = new Date().toISOString();
+    const isFirst = !hunt.items.some((i) => i.completed);
     const updatedItems: HuntItem[] = hunt.items.map((i) =>
       i.id === itemId
-        ? { ...i, completed: true, photoUri, verificationNote, completedAt: new Date().toISOString() }
+        ? { ...i, completed: true, photoUri, verificationNote, completedAt: now }
         : i
     );
-    const earnedPoints = updatedItems.filter((i) => i.completed).reduce((sum, i) => sum + i.points, 0);
     const allDone = updatedItems.every((i) => i.completed);
 
     await saveHunt({
       ...hunt,
       items: updatedItems,
-      earnedPoints,
-      completedAt: allDone ? new Date().toISOString() : undefined,
+      earnedPoints: earnedPointsFor(updatedItems),
+      startedAt: hunt.startedAt ?? (isFirst ? now : undefined),
+      completedAt: allDone ? now : undefined,
+    });
+  },
+
+  revealHint: async (huntId, itemId) => {
+    const { hunts, saveHunt } = get();
+    const hunt = hunts.find((h) => h.id === huntId);
+    if (!hunt) return;
+    const item = hunt.items.find((i) => i.id === itemId);
+    if (!item || item.hintRevealed || item.completed) return;
+    await saveHunt({
+      ...hunt,
+      items: hunt.items.map((i) => (i.id === itemId ? { ...i, hintRevealed: true } : i)),
     });
   },
 
@@ -82,6 +109,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await saveHunt({
       ...hunt,
       items: hunt.items.map((i) => (i.id === itemId ? { ...i, coords } : i)),
+    });
+  },
+
+  replaceItem: async (huntId, itemId, newItem) => {
+    const { hunts, saveHunt } = get();
+    const hunt = hunts.find((h) => h.id === huntId);
+    if (!hunt) return;
+    const updatedItems = hunt.items.map((i) => (i.id === itemId ? newItem : i));
+    await saveHunt({
+      ...hunt,
+      items: updatedItems,
+      totalPoints: updatedItems.reduce((sum, i) => sum + i.points, 0),
+      earnedPoints: earnedPointsFor(updatedItems),
     });
   },
 
