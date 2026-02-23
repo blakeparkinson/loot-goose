@@ -23,6 +23,42 @@ async function nominatimGeocode(query: string): Promise<{ lat: number; lon: numb
   }
 }
 
+function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLon = (b.lon - a.lon) * Math.PI / 180;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+// Nearest-neighbor sort: starting from `origin`, greedily pick the closest unvisited stop.
+function sortByWalkingOrder<T extends { coords: { lat: number; lon: number } | null }>(
+  items: T[],
+  origin: { lat: number; lon: number },
+): T[] {
+  const withCoords = items.filter(i => i.coords !== null);
+  const noCoords = items.filter(i => i.coords === null);
+
+  const remaining = [...withCoords];
+  const ordered: T[] = [];
+  let current = origin;
+
+  while (remaining.length > 0) {
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversineKm(current, remaining[i].coords!);
+      if (d < closestDist) { closestDist = d; closestIdx = i; }
+    }
+    const next = remaining.splice(closestIdx, 1)[0];
+    ordered.push(next);
+    current = next.coords!;
+  }
+
+  return [...ordered, ...noCoords];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -89,10 +125,25 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
     const text = response.choices[0].message.content ?? '{}';
     const data = JSON.parse(text);
 
-    // Geocode the hunt's starting location
-    const huntCoords = await nominatimGeocode(location);
+    // Geocode start location + all stops in parallel
+    const [huntCoords, ...stopCoords] = await Promise.all([
+      nominatimGeocode(location),
+      ...(data.items as any[]).map((item: any) => nominatimGeocode(item.geocodeQuery ?? item.sublocation ?? item.name)),
+    ]);
 
-    return new Response(JSON.stringify({ ...data, huntCoords }), {
+    // Attach coords to each item
+    const itemsWithCoords = (data.items as any[]).map((item: any, i: number) => ({
+      ...item,
+      coords: stopCoords[i],
+    }));
+
+    // Sort into nearest-neighbor walking order from the hunt start
+    const origin = huntCoords ?? (stopCoords.find(c => c !== null) as { lat: number; lon: number } | null);
+    const sortedItems = origin
+      ? sortByWalkingOrder(itemsWithCoords, origin)
+      : itemsWithCoords;
+
+    return new Response(JSON.stringify({ ...data, items: sortedItems, huntCoords }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e: any) {

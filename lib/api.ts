@@ -66,6 +66,9 @@ export async function generateHunt(params: {
     completed: false,
     sublocation: item.sublocation,
     geocodeQuery: item.geocodeQuery,
+    coords: item.coords
+      ? { latitude: item.coords.lat, longitude: item.coords.lon }
+      : undefined,
   }));
 
   return {
