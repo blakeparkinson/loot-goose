@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -29,6 +30,7 @@ export default function CameraScreen() {
   const [isRevealingHint, setIsRevealingHint] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const item = hunt?.items.find((i) => i.id === itemId);
 
@@ -91,6 +93,7 @@ export default function CameraScreen() {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.6, base64: true });
       if (!photo) throw new Error('No photo captured');
       setIsCapturing(false);
+      setCapturedUri(photo.uri);
       setIsVerifying(true);
 
       const imageBase64 = photo.base64 ?? '';
@@ -117,6 +120,7 @@ export default function CameraScreen() {
     } catch (e: any) {
       setIsCapturing(false);
       setIsVerifying(false);
+      setCapturedUri(null);
       Alert.alert('Error', e.message || 'Something went wrong. Try again.');
     } finally {
       setIsVerifying(false);
@@ -129,52 +133,65 @@ export default function CameraScreen() {
 
   const handleRetry = () => {
     setResult(null);
+    setCapturedUri(null);
   };
 
-  return (
-    <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
-        {/* Top overlay */}
-        <View style={styles.topOverlay}>
-          <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-            <FontAwesome name="times" size={20} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.itemBadge}>
-            <Text style={styles.itemBadgeName} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.itemBadgePoints}>{item.points}pts</Text>
-          </View>
-        </View>
+  const topBar = (
+    <View style={styles.topOverlay}>
+      <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+        <FontAwesome name="times" size={20} color="#fff" />
+      </TouchableOpacity>
+      <View style={styles.itemBadge}>
+        <Text style={styles.itemBadgeName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.itemBadgePoints}>{item.points}pts</Text>
+      </View>
+    </View>
+  );
 
-        {/* Hint */}
-        {item.hintRevealed ? (
-          <View style={styles.hintBar}>
-            <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
-            <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
-            <View style={styles.hintPenaltyBadge}>
-              <Text style={styles.hintPenaltyText}>−{hintPenalty(item)}pts</Text>
-            </View>
+  const hintBar = item.hintRevealed ? (
+    <View style={styles.hintBar}>
+      <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
+      <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
+      <View style={styles.hintPenaltyBadge}>
+        <Text style={styles.hintPenaltyText}>−{hintPenalty(item)}pts</Text>
+      </View>
+    </View>
+  ) : (
+    <TouchableOpacity
+      style={[styles.hintBar, styles.hintBarLocked]}
+      onPress={handleRevealHint}
+      disabled={isRevealingHint}
+      activeOpacity={0.7}
+    >
+      {isRevealingHint
+        ? <ActivityIndicator size="small" color={Colors.gold} />
+        : <FontAwesome name="lock" size={13} color={Colors.gold} />
+      }
+      <Text style={styles.hintText} numberOfLines={1}>
+        {isRevealingHint ? 'Revealing...' : `Tap to reveal hint · −${hintPenalty({ ...item, hintRevealed: true })}pts`}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // After capture: show the frozen photo with overlays
+  if (capturedUri) {
+    return (
+      <View style={styles.container}>
+        <Image source={{ uri: capturedUri }} style={styles.frozenPhoto} resizeMode="cover" />
+        {topBar}
+
+        {/* Verifying overlay */}
+        {isVerifying && (
+          <View style={styles.verifyingOverlay}>
+            <ActivityIndicator color="#fff" size="large" />
+            <Text style={styles.verifyingTitle}>Checking your photo…</Text>
+            <Text style={styles.verifyingSubtitle}>The goose is on it</Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.hintBar, styles.hintBarLocked]}
-            onPress={handleRevealHint}
-            disabled={isRevealingHint}
-            activeOpacity={0.7}
-          >
-            {isRevealingHint ? (
-              <ActivityIndicator size="small" color={Colors.gold} />
-            ) : (
-              <FontAwesome name="lock" size={13} color={Colors.gold} />
-            )}
-            <Text style={styles.hintText} numberOfLines={1}>
-              {isRevealingHint ? 'Revealing...' : `Tap to reveal hint · −${hintPenalty({ ...item, hintRevealed: true })}pts`}
-            </Text>
-          </TouchableOpacity>
         )}
 
         {/* Result overlay */}
         {result && (
-          <View style={[styles.resultOverlay, { backgroundColor: result.success ? 'rgba(63,185,80,0.92)' : 'rgba(248,81,73,0.92)' }]}>
+          <View style={[styles.resultOverlay, { backgroundColor: result.success ? 'rgba(34,139,34,0.88)' : 'rgba(180,40,40,0.88)' }]}>
             <Text style={styles.resultEmoji}>{result.success ? '🎉' : '❌'}</Text>
             <Text style={styles.resultTitle}>{result.success ? 'Found it!' : 'Not quite...'}</Text>
             <Text style={styles.resultMessage}>{result.message}</Text>
@@ -189,24 +206,29 @@ export default function CameraScreen() {
             )}
           </View>
         )}
+      </View>
+    );
+  }
+
+  // Live camera view
+  return (
+    <View style={styles.container}>
+      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+        {topBar}
+        {hintBar}
 
         {/* Capture button */}
-        {!result && (
-          <View style={styles.captureRow}>
-            {isCapturing || isVerifying ? (
-              <View style={styles.captureBtnOuter}>
-                <ActivityIndicator color={Colors.gold} size="large" />
-                <Text style={styles.verifyingText}>
-                  {isCapturing ? 'Capturing...' : 'Verifying with AI...'}
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.captureBtnOuter} onPress={handleCapture} activeOpacity={0.8}>
-                <View style={styles.captureBtnInner} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        <View style={styles.captureRow}>
+          {isCapturing ? (
+            <View style={styles.captureBtnOuter}>
+              <ActivityIndicator color={Colors.gold} size="large" />
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.captureBtnOuter} onPress={handleCapture} activeOpacity={0.8}>
+              <View style={styles.captureBtnInner} />
+            </TouchableOpacity>
+          )}
+        </View>
       </CameraView>
     </View>
   );
@@ -215,6 +237,7 @@ export default function CameraScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },
+  frozenPhoto: { ...StyleSheet.absoluteFillObject },
   centered: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   topOverlay: {
@@ -261,7 +284,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    gap: 10,
   },
   captureBtnOuter: {
     width: 80,
@@ -278,11 +300,19 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     backgroundColor: '#fff',
   },
-  verifyingText: { color: '#fff', marginTop: 8, fontSize: 13, fontWeight: '600' },
+
+  verifyingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  verifyingTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  verifyingSubtitle: { color: 'rgba(255,255,255,0.65)', fontSize: 14, fontWeight: '500' },
 
   resultOverlay: {
-    position: 'absolute',
-    inset: 0,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
