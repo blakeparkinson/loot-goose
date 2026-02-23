@@ -20,7 +20,7 @@ import { useAppStore, hintPenalty } from '@/lib/store';
 import { HuntItem } from '@/lib/types';
 import { geocodeQuery } from '@/lib/geocoding';
 import { openNativeMapsDirections, openMapsSearch } from '@/lib/navigation';
-import { swapItem, insertItem } from '@/lib/api';
+import { swapItem, insertItem, tuneHunt } from '@/lib/api';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -38,6 +38,8 @@ export default function HuntScreen() {
   const replaceItem = useAppStore((s) => s.replaceItem);
   const revealHint = useAppStore((s) => s.revealHint);
   const insertItemAfter = useAppStore((s) => s.insertItemAfter);
+  const deleteItem = useAppStore((s) => s.deleteItem);
+  const replaceIncompleteItems = useAppStore((s) => s.replaceIncompleteItems);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [swappingId, setSwappingId] = useState<string | null>(null);
   const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
@@ -49,6 +51,11 @@ export default function HuntScreen() {
     | { type: 'insert'; afterItem: HuntItem; beforeItem: HuntItem };
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [stopPrompt, setStopPrompt] = useState('');
+
+  // Tune hunt modal
+  const [tuneModalVisible, setTuneModalVisible] = useState(false);
+  const [tuneFeedback, setTuneFeedback] = useState('');
+  const [isTuning, setIsTuning] = useState(false);
 
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
@@ -120,6 +127,44 @@ export default function HuntScreen() {
         },
       ],
     );
+  };
+
+  const handleDeleteItem = (item: HuntItem) => {
+    Alert.alert('Remove Stop', `Remove "${item.name}" from this hunt?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          await deleteItem(hunt!.id, item.id);
+        },
+      },
+    ]);
+  };
+
+  const handleTuneHunt = async () => {
+    const feedback = tuneFeedback.trim();
+    if (!feedback) return;
+    setIsTuning(true);
+    setTuneModalVisible(false);
+    try {
+      const incomplete = hunt!.items.filter((i) => !i.completed);
+      const newItems = await tuneHunt({
+        location: hunt!.location,
+        prompt: hunt!.prompt,
+        difficulty: hunt!.difficulty,
+        feedback,
+        currentStops: hunt!.items.map((i) => ({ name: i.name, sublocation: i.sublocation, completed: i.completed })),
+        incompleteCount: incomplete.length,
+      });
+      await replaceIncompleteItems(hunt!.id, newItems);
+      setTuneFeedback('');
+    } catch (e: any) {
+      Alert.alert('Tune Failed', e.message ?? 'Something went wrong.');
+    } finally {
+      setIsTuning(false);
+    }
   };
 
   const handleInsert = (afterItem: HuntItem, beforeItem: HuntItem) => {
@@ -280,6 +325,13 @@ export default function HuntScreen() {
           {!item.completed && (
             <View style={styles.itemActions}>
               <TouchableOpacity
+                style={styles.deleteItemBtn}
+                onPress={() => handleDeleteItem(item)}
+                disabled={swappingId !== null}
+              >
+                <FontAwesome name="trash" size={13} color={Colors.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.swapBtn}
                 onPress={() => handleSwap(item)}
                 disabled={isSwapping || swappingId !== null}
@@ -357,17 +409,37 @@ export default function HuntScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Map button */}
-        <TouchableOpacity
-          style={styles.mapBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push({ pathname: '/hunt/map', params: { id: hunt.id } });
-          }}
-        >
-          <FontAwesome name="map" size={14} color={Colors.blue} />
-          <Text style={styles.mapBtnText}>View Stop Map</Text>
-        </TouchableOpacity>
+        {/* Map + Tune buttons */}
+        <View style={styles.headerBtns}>
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/hunt/map', params: { id: hunt.id } });
+            }}
+          >
+            <FontAwesome name="map" size={14} color={Colors.blue} />
+            <Text style={styles.mapBtnText}>Map</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tuneBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setTuneFeedback('');
+              setTuneModalVisible(true);
+            }}
+            disabled={isTuning || hunt.items.every((i) => i.completed)}
+          >
+            {isTuning ? (
+              <ActivityIndicator size="small" color={Colors.purple} />
+            ) : (
+              <>
+                <FontAwesome name="magic" size={14} color={Colors.purple} />
+                <Text style={styles.tuneBtnText}>Tune Hunt</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.itemsHeading}>Items</Text>
@@ -395,6 +467,49 @@ export default function HuntScreen() {
         <FontAwesome name="trash" size={14} color={Colors.red} />
         <Text style={styles.deleteBtnText}>Delete Hunt</Text>
       </TouchableOpacity>
+
+      {/* Tune Hunt modal */}
+      <Modal
+        visible={tuneModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTuneModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Tune This Hunt</Text>
+            <Text style={styles.modalSubtitle}>Describe what you'd change and we'll regenerate the remaining stops.</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder={`e.g. "more food spots", "keep stops closer together", "add street art", "follow the riverfront"`}
+              placeholderTextColor={Colors.textMuted}
+              value={tuneFeedback}
+              onChangeText={setTuneFeedback}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              autoFocus
+            />
+            <Text style={styles.modalHint}>Completed stops are kept. Only remaining stops are replaced.</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setTuneModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: Colors.purple }]}
+                onPress={handleTuneHunt}
+                disabled={!tuneFeedback.trim()}
+              >
+                <FontAwesome name="magic" size={13} color="#fff" />
+                <Text style={[styles.modalConfirmText, { color: '#fff' }]}>Tune It</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Stop prompt modal */}
       <Modal
@@ -472,11 +587,18 @@ const styles = StyleSheet.create({
   },
   completedBannerText: { color: Colors.green, fontWeight: '700', fontSize: 14 },
 
+  headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
   mapBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10, marginTop: 4,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
   },
   mapBtnText: { fontSize: 14, fontWeight: '700', color: Colors.blue },
+  tuneBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.purple}30`,
+  },
+  tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
 
   itemsHeading: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
 
@@ -512,6 +634,10 @@ const styles = StyleSheet.create({
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
   itemActions: { flexDirection: 'row', gap: 6 },
+  deleteItemBtn: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
   swapBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface,
     alignItems: 'center', justifyContent: 'center',

@@ -124,6 +124,36 @@ export async function insertItem(params: {
   };
 }
 
+export async function tuneHunt(params: {
+  location: string;
+  prompt: string;
+  difficulty: HuntDifficulty;
+  feedback: string;
+  currentStops: { name: string; sublocation?: string; completed: boolean }[];
+  incompleteCount: number;
+}): Promise<HuntItem[]> {
+  const { location, prompt, difficulty, feedback, currentStops, incompleteCount } = params;
+  const [minPts, maxPts] = POINT_RANGE[difficulty];
+
+  const data = await callEdgeFunction('tune-hunt', {
+    location, prompt, minPts, maxPts, feedback, currentStops, incompleteCount,
+  });
+
+  return (data.items as any[]).map((item, i) => ({
+    id: `item-${Date.now()}-tune-${i}`,
+    name: item.name,
+    description: item.description,
+    hint: item.hint,
+    points: item.points,
+    completed: false,
+    sublocation: item.sublocation,
+    geocodeQuery: item.geocodeQuery,
+    coords: item.coords
+      ? { latitude: item.coords.lat, longitude: item.coords.lon }
+      : undefined,
+  }));
+}
+
 export async function swapItem(params: {
   location: string;
   prompt: string;
