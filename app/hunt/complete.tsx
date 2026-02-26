@@ -7,10 +7,14 @@ import {
   TouchableOpacity,
   Image,
   Share,
+  Alert,
+  Platform,
   Animated,
   Easing,
   Dimensions,
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +36,8 @@ export default function HuntCompleteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === id));
+
+  const shotRef = useRef<View>(null);
 
   const gooseScale = useRef(new Animated.Value(0)).current;
   const gooseBounce = useRef(new Animated.Value(0)).current;
@@ -114,86 +120,111 @@ export default function HuntCompleteScreen() {
     await Share.share({ message: lines });
   };
 
+  const handleSaveShare = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const uri = await captureRef(shotRef, { format: 'jpg', quality: 1.0 });
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(uri);
+      } else if (status === 'denied') {
+        Alert.alert('Permission Needed', 'Allow photo library access to save the recap card.');
+      }
+      await Share.share(
+        Platform.OS === 'ios' ? { url: uri } : { message: uri }
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Could not capture the recap card.');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Shareable card area */}
+        <View ref={shotRef} collapsable={false} style={styles.captureArea}>
 
-        {/* Hero celebration area */}
-        <View style={styles.hero}>
-          <Animated.View style={[styles.glowRing, { opacity: glowPulse }]} />
-          <Animated.View style={[styles.glowRingOuter, { opacity: Animated.multiply(glowPulse, 0.4) as any }]} />
+          {/* Hero celebration area */}
+          <View style={styles.hero}>
+            <Animated.View style={[styles.glowRing, { opacity: glowPulse }]} />
+            <Animated.View style={[styles.glowRingOuter, { opacity: Animated.multiply(glowPulse, 0.4) as any }]} />
 
-          {/* Spinning star accents */}
-          <Animated.Text style={[styles.starTL, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
-          <Animated.Text style={[styles.starTR, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
-          <Animated.Text style={[styles.starBL, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
-          <Animated.Text style={[styles.starBR, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
+            {/* Spinning star accents */}
+            <Animated.Text style={[styles.starTL, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
+            <Animated.Text style={[styles.starTR, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
+            <Animated.Text style={[styles.starBL, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
+            <Animated.Text style={[styles.starBR, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
 
-          <Animated.Text
-            style={[styles.goose, { transform: [{ scale: gooseScale }, { translateY: gooseBounce }] }]}
-          >
-            🪿
-          </Animated.Text>
+            <Animated.Text
+              style={[styles.goose, { transform: [{ scale: gooseScale }, { translateY: gooseBounce }] }]}
+            >
+              🪿
+            </Animated.Text>
 
-          <Animated.Text style={[styles.heroTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            HUNT COMPLETE!
-          </Animated.Text>
-          <Animated.Text style={[styles.huntTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            {hunt.title}
-          </Animated.Text>
-          <Animated.Text style={[styles.huntLocation, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} /> {hunt.location}
-          </Animated.Text>
-        </View>
-
-        {/* Stats */}
-        <Animated.View style={[styles.statsCard, { opacity: fadeIn, transform: [{ translateY: statsSlide }] }]}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{hunt.earnedPoints}</Text>
-            <Text style={styles.statLabel}>Points</Text>
+            <Animated.Text style={[styles.heroTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
+              HUNT COMPLETE!
+            </Animated.Text>
+            <Animated.Text style={[styles.huntTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
+              {hunt.title}
+            </Animated.Text>
+            <Animated.Text style={[styles.huntLocation, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
+              <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} /> {hunt.location}
+            </Animated.Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{completedItems.length}/{hunt.items.length}</Text>
-            <Text style={styles.statLabel}>Items</Text>
-          </View>
-          {duration && (
-            <>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{duration}</Text>
-                <Text style={styles.statLabel}>Time</Text>
-              </View>
-            </>
-          )}
-        </Animated.View>
 
-        {/* Photo grid */}
-        {itemsWithPhotos.length > 0 && (
-          <Animated.View style={[{ opacity: fadeIn, transform: [{ translateY: photosSlide }] }]}>
-            <Text style={styles.sectionLabel}>Your Captures</Text>
-            <View style={styles.photoGrid}>
-              {itemsWithPhotos.map((item) => (
-                <View key={item.id} style={styles.photoCell}>
-                  <Image source={{ uri: item.photoUri }} style={styles.photo} />
-                  <View style={styles.photoOverlay}>
-                    <Text style={styles.photoName} numberOfLines={2}>{item.name}</Text>
-                    <Text style={styles.photoPoints}>{item.points}pts</Text>
-                  </View>
-                </View>
-              ))}
+          {/* Stats */}
+          <Animated.View style={[styles.statsCard, { opacity: fadeIn, transform: [{ translateY: statsSlide }] }]}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{hunt.earnedPoints}</Text>
+              <Text style={styles.statLabel}>Points</Text>
             </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{completedItems.length}/{hunt.items.length}</Text>
+              <Text style={styles.statLabel}>Items</Text>
+            </View>
+            {duration && (
+              <>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{duration}</Text>
+                  <Text style={styles.statLabel}>Time</Text>
+                </View>
+              </>
+            )}
           </Animated.View>
-        )}
 
+          {/* Photo grid */}
+          {itemsWithPhotos.length > 0 && (
+            <Animated.View style={[{ opacity: fadeIn, transform: [{ translateY: photosSlide }] }]}>
+              <Text style={styles.sectionLabel}>Your Captures</Text>
+              <View style={styles.photoGrid}>
+                {itemsWithPhotos.map((item) => (
+                  <View key={item.id} style={styles.photoCell}>
+                    <Image source={{ uri: item.photoUri }} style={styles.photo} />
+                    <View style={styles.photoOverlay}>
+                      <Text style={styles.photoName} numberOfLines={2}>{item.name}</Text>
+                      <Text style={styles.photoPoints}>{item.points}pts</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Watermark */}
+          <Text style={styles.watermark}>🪿 Loot Goose</Text>
+
+        </View>
         <View style={{ height: 32 }} />
       </ScrollView>
 
       {/* Bottom actions */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
-          <FontAwesome name="share" size={16} color={Colors.gold} />
-          <Text style={styles.shareBtnText}>Share Score</Text>
+        <TouchableOpacity style={styles.shareBtn} onPress={handleSaveShare} activeOpacity={0.8}>
+          <FontAwesome name="image" size={16} color={Colors.gold} />
+          <Text style={styles.shareBtnText}>Save & Share Card</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.doneBtn}
@@ -214,6 +245,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingBottom: 120 },
+  captureArea: { backgroundColor: Colors.bg },
 
   hero: {
     alignItems: 'center',
@@ -321,6 +353,15 @@ const styles = StyleSheet.create({
   },
   photoName: { flex: 1, fontSize: 11, fontWeight: '700', color: '#fff', lineHeight: 14 },
   photoPoints: { fontSize: 11, fontWeight: '800', color: Colors.gold },
+
+  watermark: {
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    paddingVertical: 16,
+    letterSpacing: 0.5,
+  },
 
   actions: {
     position: 'absolute',

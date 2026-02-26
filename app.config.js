@@ -25,7 +25,7 @@ export default {
     android: {
       package: 'com.lootgoose.app',
       adaptiveIcon: {
-        foregroundImage: './assets/icon.png',
+        foregroundImage: './assets/adaptive-icon-foreground.png',
         backgroundColor: '#0D1117',
       },
       config: {
@@ -59,6 +59,14 @@ export default {
       [
         'expo-location',
         { locationWhenInUsePermission: 'Loot Goose uses your location to verify you\'re at the right spot.' },
+      ],
+      [
+        'expo-media-library',
+        {
+          photosPermission: 'Loot Goose needs photo library access to save hunt recap cards.',
+          savePhotosPermission: 'Loot Goose needs permission to save photos to your library.',
+          isAccessMediaLocationEnabled: true,
+        },
       ],
     ],
     extra: {

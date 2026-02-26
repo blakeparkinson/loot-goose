@@ -32,6 +32,7 @@ export interface Hunt {
   totalPoints: number;
   earnedPoints: number;
   createdAt: string;
-  startedAt?: string;    // set when first item is completed
+  startedAt?: string;    // set on first item completion
   completedAt?: string;
+  publishedCode?: string;  // set once published to library; re-publish shows existing code
 }

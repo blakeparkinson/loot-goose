@@ -308,6 +308,8 @@ const styles = StyleSheet.create({
   diffEmoji: { fontSize: 24 },
   diffLabel: { fontSize: 14, fontWeight: '800', color: Colors.text },
 
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+
   generateBtn: {
     backgroundColor: Colors.gold, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', paddingVertical: 18, borderRadius: 16, gap: 10,

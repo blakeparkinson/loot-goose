@@ -11,34 +11,69 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system';
 import Colors from '@/constants/Colors';
 import { useAppStore, hintPenalty } from '@/lib/store';
-import { verifyPhoto } from '@/lib/api';
+import { verifyPhoto, completeCoopItem } from '@/lib/api';
 
 export default function CameraScreen() {
-  const { huntId, itemId } = useLocalSearchParams<{ huntId: string; itemId: string }>();
+  const {
+    huntId,
+    itemId,
+    coopCode,
+    playerName: coopPlayerName,
+    itemNameOverride,
+    itemDescOverride,
+    itemHintOverride,
+    itemPoints,
+  } = useLocalSearchParams<{
+    huntId: string;
+    itemId: string;
+    coopCode?: string;
+    playerName?: string;
+    itemNameOverride?: string;
+    itemDescOverride?: string;
+    itemHintOverride?: string;
+    itemPoints?: string;
+  }>();
+  const isCoopMode = !!coopCode;
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === huntId));
   const completeItem = useAppStore((s) => s.completeItem);
   const revealHint = useAppStore((s) => s.revealHint);
+
 
   const [isRevealingHint, setIsRevealingHint] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-  const item = hunt?.items.find((i) => i.id === itemId);
+  // For co-op joiners (no local hunt), fall back to inline item data from route params
+  const item = hunt?.items.find((i) => i.id === itemId) ?? (
+    itemNameOverride
+      ? {
+          id: itemId,
+          name: itemNameOverride,
+          description: itemDescOverride ?? '',
+          hint: itemHintOverride ?? '',
+          points: Number(itemPoints ?? 0),
+          completed: false,
+          hintRevealed: false as boolean | undefined,
+        }
+      : undefined
+  );
 
   useEffect(() => {
     if (!permission?.granted) requestPermission();
   }, []);
 
-  if (!hunt || !item) {
+  if ((!hunt && !isCoopMode) || !item) {
     return (
       <View style={styles.centered}>
         <Text style={{ color: Colors.text }}>Item not found.</Text>
@@ -101,18 +136,38 @@ export default function CameraScreen() {
         imageBase64,
         itemName: item.name,
         itemDescription: item.description,
-        location: hunt.location,
+        location: hunt?.location ?? item.sublocation ?? '',
       });
 
       setResult(verification);
 
       if (verification.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const isLastItem = hunt.items.filter((i) => !i.completed && i.id !== itemId).length === 0;
-        await completeItem(huntId, itemId, photo.uri, verification.message);
-        if (isLastItem) {
-          router.replace({ pathname: '/hunt/complete', params: { id: huntId } });
-          return;
+
+        if (isCoopMode) {
+          // Co-op path — write to Supabase, not Zustand. Realtime updates the coop screen.
+          try {
+            await completeCoopItem({
+              code: coopCode!,
+              itemId,
+              playerName: coopPlayerName!,
+              verificationNote: verification.message,
+            });
+          } catch (e: any) {
+            // 409 means someone else completed it first — navigate back anyway
+            if (!e.message?.includes('409') && !e.message?.includes('Already') && !e.message?.includes('alreadyCompleted')) {
+              throw e;
+            }
+          }
+          // router.back() falls through to handleDone; the coop screen updates via Realtime
+        } else {
+          // Solo path — existing behavior
+          const isLastItem = hunt!.items.filter((i) => !i.completed && i.id !== itemId).length === 0;
+          await completeItem(huntId, itemId, photo.uri, verification.message);
+          if (isLastItem) {
+            router.replace({ pathname: '/hunt/complete', params: { id: huntId } });
+            return;
+          }
         }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -137,7 +192,7 @@ export default function CameraScreen() {
   };
 
   const topBar = (
-    <View style={styles.topOverlay}>
+    <View style={[styles.topOverlay, { paddingTop: insets.top + 12 }]}>
       <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
         <FontAwesome name="times" size={20} color="#fff" />
       </TouchableOpacity>
@@ -148,7 +203,8 @@ export default function CameraScreen() {
     </View>
   );
 
-  const hintBar = item.hintRevealed ? (
+  // In co-op mode hints are hidden (no Zustand to persist penalty state)
+  const hintBar = isCoopMode ? null : item.hintRevealed ? (
     <View style={styles.hintBar}>
       <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
       <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
@@ -243,8 +299,8 @@ const styles = StyleSheet.create({
   topOverlay: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     gap: 12,
     backgroundColor: 'rgba(0,0,0,0.5)',
   },

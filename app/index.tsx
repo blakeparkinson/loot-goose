@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -16,8 +20,17 @@ import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { Hunt } from '@/lib/types';
 import { reverseGeocode } from '@/lib/geocoding';
-import { generateHunt } from '@/lib/api';
+import { generateHunt, loadSharedHunt, joinCoopSession } from '@/lib/api';
+import { randomPlayerName } from '@/app/hunt/coop/[code]';
 import { fetchWeather } from '@/lib/weather';
+
+type FilterKey = 'all' | 'active' | 'done';
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'done', label: 'Done' },
+];
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -60,8 +73,16 @@ export default function HomeScreen() {
   const saveHunt = useAppStore((s) => s.saveHunt);
   const deleteHunt = useAppStore((s) => s.deleteHunt);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<FilterKey>('all');
+
   const [gooseLooseLoading, setGooseLooseLoading] = useState(false);
   const [gooseLooseMsg, setGooseLooseMsg] = useState('');
+
+  const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinPlayerName, setJoinPlayerName] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   const handleDelete = (hunt: Hunt) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -115,10 +136,75 @@ export default function HomeScreen() {
     }
   };
 
+  const handleJoinHunt = async () => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length < 6) return;
+    const name = joinPlayerName.trim() || randomPlayerName();
+    setIsJoining(true);
+    try {
+      // Try co-op session first
+      try {
+        await joinCoopSession(code, name);
+        setJoinModalVisible(false);
+        setJoinCode('');
+        setJoinPlayerName('');
+        router.push({
+          pathname: '/hunt/coop/[code]',
+          params: { code, playerName: name, huntId: '' },
+        });
+        return;
+      } catch (coopErr: any) {
+        // Only fall through if session genuinely not found
+        const msg = coopErr.message ?? '';
+        if (!msg.includes('not found') && !msg.includes('404') && !msg.includes('expired')) {
+          throw coopErr;
+        }
+      }
+
+      // Fallback: static shared hunt (creates a local solo copy)
+      const huntData = await loadSharedHunt(code);
+      const newHunt: Hunt = {
+        ...huntData,
+        id: `hunt-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        earnedPoints: 0,
+        items: huntData.items.map((item: any, i: number) => ({
+          ...item,
+          id: `item-${Date.now()}-${i}`,
+          completed: false,
+          photoUri: undefined,
+          verificationNote: undefined,
+          hintRevealed: false,
+        })),
+      };
+      await saveHunt(newHunt);
+      setJoinModalVisible(false);
+      setJoinCode('');
+      setJoinPlayerName('');
+      router.push(`/hunt/${newHunt.id}`);
+    } catch (e: any) {
+      Alert.alert('Hunt Not Found', e.message ?? 'Could not find a hunt with that code. Check and try again.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const completionPct = (hunt: Hunt) =>
     hunt.items.length > 0
       ? Math.round((hunt.items.filter((i) => i.completed).length / hunt.items.length) * 100)
       : 0;
+
+  const displayedHunts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let list = [...hunts];
+    if (q) list = list.filter(
+      (h) => h.title.toLowerCase().includes(q) || h.location.toLowerCase().includes(q)
+    );
+    if (filter === 'active') list = list.filter((h) => completionPct(h) < 100);
+    if (filter === 'done') list = list.filter((h) => completionPct(h) === 100);
+    list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return list;
+  }, [hunts, filter, searchQuery]);
 
   const renderHunt = ({ item }: { item: Hunt }) => {
     const pct = completionPct(item);
@@ -137,8 +223,10 @@ export default function HomeScreen() {
             <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
             {done && <FontAwesome name="check-circle" size={16} color={Colors.green} />}
           </View>
-          <View style={[styles.diffBadge, { backgroundColor: `${diffColor}22` }]}>
-            <Text style={[styles.diffText, { color: diffColor }]}>{item.difficulty}</Text>
+          <View style={styles.cardBadges}>
+            <View style={[styles.diffBadge, { backgroundColor: `${diffColor}22` }]}>
+              <Text style={[styles.diffText, { color: diffColor }]}>{item.difficulty}</Text>
+            </View>
           </View>
         </View>
 
@@ -176,15 +264,69 @@ export default function HomeScreen() {
     </View>
   );
 
+  const Toolbar = () => (
+    <View style={styles.toolbar}>
+      <View style={styles.filterPills}>
+        {FILTERS.map((f) => (
+          <TouchableOpacity
+            key={f.key}
+            style={[styles.filterPill, filter === f.key && styles.filterPillActive]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setFilter(f.key);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.filterPillText, filter === f.key && styles.filterPillTextActive]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const EmptyFiltered = () => (
+    <View style={styles.emptyFiltered}>
+      <Text style={styles.emptyFilteredText}>
+        {searchQuery.trim()
+          ? `No hunts match "${searchQuery.trim()}"`
+          : filter === 'active' ? 'No active hunts.' : 'No completed hunts.'}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
+      {hunts.length > 0 && (
+        <View style={styles.searchBar}>
+          <FontAwesome name="search" size={14} color={Colors.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search hunts…"
+            placeholderTextColor={Colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <FontAwesome name="times-circle" size={15} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       <FlatList
-        data={hunts}
+        data={displayedHunts}
         keyExtractor={(h) => h.id}
         renderItem={renderHunt}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={EmptyState}
+        ListHeaderComponent={hunts.length > 0 ? Toolbar : null}
+        ListEmptyComponent={hunts.length === 0 ? EmptyState : EmptyFiltered}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       />
 
       <View style={styles.fabRow}>
@@ -221,13 +363,137 @@ export default function HomeScreen() {
           <Text style={styles.fabText}>New Hunt</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Secondary row: Library + Join */}
+      <View style={styles.secondaryRow}>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/library');
+          }}
+          activeOpacity={0.7}
+        >
+          <FontAwesome name="book" size={14} color={Colors.textSecondary} />
+          <Text style={styles.secondaryBtnText}>Library</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setJoinCode('');
+            setJoinModalVisible(true);
+          }}
+          activeOpacity={0.7}
+        >
+          <FontAwesome name="link" size={13} color={Colors.textSecondary} />
+          <Text style={styles.secondaryBtnText}>Join a Hunt</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Join Hunt modal */}
+      <Modal
+        visible={joinModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setJoinModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Join a Hunt</Text>
+            <Text style={styles.modalSubtitle}>Enter the 6-character code. We'll join a live co-op session if one exists, otherwise load it as a solo hunt.</Text>
+            <TextInput
+              style={styles.codeInput}
+              placeholder="E.g. G7X2KP"
+              placeholderTextColor={Colors.textMuted}
+              value={joinCode}
+              onChangeText={(t) => setJoinCode(t.toUpperCase().slice(0, 6))}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={6}
+              autoFocus
+            />
+            <TextInput
+              style={[styles.modalInput, { marginBottom: 20 }]}
+              placeholder={`Your name (e.g. ${randomPlayerName()})`}
+              placeholderTextColor={Colors.textMuted}
+              value={joinPlayerName}
+              onChangeText={setJoinPlayerName}
+              maxLength={30}
+              autoCapitalize="words"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setJoinModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, isJoining && { opacity: 0.7 }]}
+                onPress={handleJoinHunt}
+                disabled={isJoining || joinCode.trim().length < 6}
+              >
+                {isJoining ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Join Hunt</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  list: { padding: 16, paddingBottom: 130, flexGrow: 1 },
+  list: { padding: 16, paddingBottom: 150, flexGrow: 1 },
+
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  searchIcon: { flexShrink: 0 },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+    padding: 0,
+  },
+
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 8,
+  },
+  filterPills: { flexDirection: 'row', gap: 6 },
+  filterPill: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+  },
+  filterPillActive: { borderColor: Colors.gold, backgroundColor: Colors.goldLight },
+  filterPillText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  filterPillTextActive: { color: Colors.gold },
+  emptyFiltered: { alignItems: 'center', paddingTop: 40 },
+  emptyFilteredText: { fontSize: 15, color: Colors.textMuted },
 
   card: {
     backgroundColor: Colors.card,
@@ -239,6 +505,7 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 },
   cardTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, flex: 1 },
+  cardBadges: { alignItems: 'flex-end', gap: 4 },
   diffBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
   diffText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   cardLocation: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
@@ -258,7 +525,7 @@ const styles = StyleSheet.create({
 
   fabRow: {
     position: 'absolute',
-    bottom: 32,
+    bottom: 66,
     left: 16,
     right: 16,
     flexDirection: 'row',
@@ -298,4 +565,60 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabText: { fontSize: 15, fontWeight: '800', color: '#000' },
+
+  secondaryRow: {
+    position: 'absolute',
+    bottom: 8,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 36,
+    borderTopWidth: 1, borderColor: Colors.border,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
+  codeInput: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 16, fontSize: 28, color: Colors.text,
+    textAlign: 'center', letterSpacing: 8, fontWeight: '800',
+    marginBottom: 12,
+  },
+  modalInput: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 14, fontSize: 15, color: Colors.text,
+  },
+  modalButtons: { flexDirection: 'row', gap: 10 },
+  modalCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalCancelText: { fontSize: 15, fontWeight: '700', color: Colors.textSecondary },
+  modalConfirmBtn: {
+    flex: 2, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center',
+  },
+  modalConfirmText: { fontSize: 15, fontWeight: '800', color: '#000' },
 });

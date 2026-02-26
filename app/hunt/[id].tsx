@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -11,16 +12,20 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore, hintPenalty } from '@/lib/store';
-import { HuntItem } from '@/lib/types';
-import { geocodeQuery } from '@/lib/geocoding';
-import { openNativeMapsDirections, openMapsSearch } from '@/lib/navigation';
-import { swapItem, insertItem, tuneHunt } from '@/lib/api';
+
+import * as Location from 'expo-location';
+import { HuntItem, Coords } from '@/lib/types';
+import { geocodeQuery, distanceMiles } from '@/lib/geocoding';
+import { openNativeMapsDirections, openMapsSearch, openRouteInMaps } from '@/lib/navigation';
+import { swapItem, insertItem, tuneHunt, createCoopSession, publishHunt } from '@/lib/api';
+import { randomPlayerName } from '@/app/hunt/coop/[code]';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -28,12 +33,31 @@ const DIFFICULTY_COLOR: Record<string, string> = {
   hard: Colors.red,
 };
 
+function haversineMi(a: Coords, b: Coords): number {
+  const R = 3958.8;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(x));
+}
+
+function routeDistanceMi(items: HuntItem[]): number | null {
+  const coords = items.map((i) => i.coords).filter((c): c is Coords => !!c);
+  if (coords.length < 2) return null;
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) total += haversineMi(coords[i - 1], coords[i]);
+  return total;
+}
+
 export default function HuntScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === id));
   const deleteHunt = useAppStore((s) => s.deleteHunt);
+  const saveHunt = useAppStore((s) => s.saveHunt);
   const updateItemCoords = useAppStore((s) => s.updateItemCoords);
   const replaceItem = useAppStore((s) => s.replaceItem);
   const revealHint = useAppStore((s) => s.revealHint);
@@ -57,6 +81,53 @@ export default function HuntScreen() {
   const [tuneFeedback, setTuneFeedback] = useState('');
   const [isTuning, setIsTuning] = useState(false);
 
+  // Co-op
+  const [coopModalVisible, setCoopModalVisible] = useState(false);
+  const [coopPlayerName, setCoopPlayerName] = useState('');
+  const [isCreatingCoop, setIsCreatingCoop] = useState(false);
+
+  // Publish
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishModalVisible, setPublishModalVisible] = useState(false);
+
+  // Arrival detection
+  const [nearbyItemId, setNearbyItemId] = useState<string | null>(null);
+  const huntRef = useRef(hunt);
+  const locationSub = useRef<Location.LocationSubscription | null>(null);
+  const notifiedArrivals = useRef<Set<string>>(new Set());
+  const ARRIVAL_THRESHOLD_MILES = 0.05; // ~260ft
+
+  useEffect(() => { huntRef.current = hunt; }, [hunt]);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      locationSub.current = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 4000 },
+        (loc) => {
+          const user = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+          const currentHunt = huntRef.current;
+          if (!currentHunt) return;
+          let found: string | null = null;
+          for (const item of currentHunt.items) {
+            if (item.completed || !item.coords) continue;
+            if (distanceMiles(user, item.coords) <= ARRIVAL_THRESHOLD_MILES) {
+              found = item.id;
+              if (!notifiedArrivals.current.has(item.id)) {
+                notifiedArrivals.current.add(item.id);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              break;
+            }
+          }
+          setNearbyItemId(found);
+        }
+      );
+    })();
+    return () => { locationSub.current?.remove(); };
+  }, []);
+
   useEffect(() => {
     if (hunt) navigation.setOptions({ title: hunt.title });
   }, [hunt?.title]);
@@ -72,6 +143,10 @@ export default function HuntScreen() {
   const completedCount = hunt.items.filter((i) => i.completed).length;
   const pct = hunt.items.length > 0 ? (completedCount / hunt.items.length) * 100 : 0;
   const diffColor = DIFFICULTY_COLOR[hunt.difficulty];
+  const distMi = routeDistanceMi(hunt.items);
+  const distLabel = distMi === null ? null
+    : distMi < 0.1 ? `~${Math.round(distMi * 5280)} ft`
+    : `~${distMi.toFixed(1)} mi`;
 
   const handleDelete = () => {
     Alert.alert('Delete Hunt', 'Are you sure?', [
@@ -164,6 +239,41 @@ export default function HuntScreen() {
       Alert.alert('Tune Failed', e.message ?? 'Something went wrong.');
     } finally {
       setIsTuning(false);
+    }
+  };
+
+  const handleCreateCoop = async () => {
+    const name = coopPlayerName.trim();
+    if (!name) return;
+    setIsCreatingCoop(true);
+    try {
+      const { code } = await createCoopSession(hunt!, name);
+      setCoopModalVisible(false);
+      router.push({
+        pathname: '/hunt/coop/[code]',
+        params: { code, playerName: name, huntId: hunt!.id },
+      });
+    } catch (e: any) {
+      Alert.alert('Co-op Failed', e.message ?? 'Could not start a co-op session.');
+    } finally {
+      setIsCreatingCoop(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (hunt!.publishedCode) {
+      setPublishModalVisible(true);
+      return;
+    }
+    setIsPublishing(true);
+    try {
+      const { code } = await publishHunt(hunt!);
+      await saveHunt({ ...hunt!, publishedCode: code });
+      setPublishModalVisible(true);
+    } catch (e: any) {
+      Alert.alert('Publish Failed', e.message ?? 'Could not publish to library.');
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -264,109 +374,128 @@ export default function HuntScreen() {
     const isNavigating = navigatingId === item.id;
     const isSwapping = swappingId === item.id;
     const isRevealingHint = revealingHintId === item.id;
+    const isNearby = nearbyItemId === item.id && !item.completed;
     const penalty = hintPenalty({ ...item, hintRevealed: true });
     return (
-      <View style={[styles.itemCard, item.completed && styles.itemCardDone]}>
-        <View style={styles.itemLeft}>
-          <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
-            {item.completed ? (
-              <FontAwesome name="check" size={14} color={Colors.green} />
-            ) : (
-              <Text style={styles.itemNumberText}>{index + 1}</Text>
-            )}
-          </View>
-          <View style={styles.itemInfo}>
-            <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
-              {item.name}
-            </Text>
-            <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
-            {!item.completed && item.sublocation && (
-              <Text style={styles.itemSublocation} numberOfLines={1}>
-                <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
+      <View style={[styles.itemCard, item.completed && styles.itemCardDone, isNearby && styles.itemCardNearby]}>
+        <View style={styles.itemCardRow}>
+          <View style={styles.itemLeft}>
+            <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
+              {item.completed ? (
+                <FontAwesome name="check" size={14} color={Colors.green} />
+              ) : (
+                <Text style={styles.itemNumberText}>{index + 1}</Text>
+              )}
+            </View>
+            <View style={styles.itemInfo}>
+              <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
+                {item.name}
               </Text>
+              <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
+              {!item.completed && item.sublocation && (
+                <Text style={styles.itemSublocation} numberOfLines={1}>
+                  <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
+                </Text>
+              )}
+              {!item.completed && (
+                item.hintRevealed ? (
+                  <View style={styles.hintRow}>
+                    <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} />
+                    <Text style={styles.itemHint} numberOfLines={2}>{item.hint}</Text>
+                    <View style={styles.hintPenaltyBadge}>
+                      <Text style={styles.hintPenaltyText}>−{penalty}pts</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.hintLocked}
+                    onPress={() => handleRevealHint(item)}
+                    disabled={isRevealingHint}
+                  >
+                    {isRevealingHint ? (
+                      <ActivityIndicator size="small" color={Colors.gold} />
+                    ) : (
+                      <>
+                        <FontAwesome name="lock" size={11} color={Colors.gold} />
+                        <Text style={styles.hintLockedText}>Reveal hint · −{penalty}pts</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )
+              )}
+              {item.completed && item.verificationNote ? (
+                <Text style={styles.verificationNote} numberOfLines={1}>
+                  <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.itemRight}>
+            <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
+              {item.completed ? item.points - hintPenalty(item) : item.points}pts
+            </Text>
+            {item.completed && item.photoUri && (
+              <Image source={{ uri: item.photoUri }} style={styles.itemThumb} />
             )}
             {!item.completed && (
-              item.hintRevealed ? (
-                <View style={styles.hintRow}>
-                  <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} />
-                  <Text style={styles.itemHint} numberOfLines={2}>{item.hint}</Text>
-                  <View style={styles.hintPenaltyBadge}>
-                    <Text style={styles.hintPenaltyText}>−{penalty}pts</Text>
-                  </View>
-                </View>
-              ) : (
+              <View style={styles.itemActions}>
                 <TouchableOpacity
-                  style={styles.hintLocked}
-                  onPress={() => handleRevealHint(item)}
-                  disabled={isRevealingHint}
+                  style={styles.deleteItemBtn}
+                  onPress={() => handleDeleteItem(item)}
+                  disabled={swappingId !== null}
                 >
-                  {isRevealingHint ? (
-                    <ActivityIndicator size="small" color={Colors.gold} />
+                  <FontAwesome name="trash" size={13} color={Colors.textMuted} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.swapBtn}
+                  onPress={() => handleSwap(item)}
+                  disabled={isSwapping || swappingId !== null}
+                >
+                  {isSwapping ? (
+                    <ActivityIndicator size="small" color={Colors.textSecondary} />
                   ) : (
-                    <>
-                      <FontAwesome name="lock" size={11} color={Colors.gold} />
-                      <Text style={styles.hintLockedText}>Reveal hint · −{penalty}pts</Text>
-                    </>
+                    <FontAwesome name="refresh" size={13} color={Colors.textSecondary} />
                   )}
                 </TouchableOpacity>
-              )
+                {(item.sublocation || item.geocodeQuery) && (
+                  <TouchableOpacity
+                    style={styles.navigateBtn}
+                    onPress={() => handleNavigate(item)}
+                    disabled={isNavigating}
+                  >
+                    {isNavigating ? (
+                      <ActivityIndicator size="small" color={Colors.blue} />
+                    ) : (
+                      <FontAwesome name="location-arrow" size={14} color={Colors.blue} />
+                    )}
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.captureBtn}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
+                  }}
+                >
+                  <FontAwesome name="camera" size={14} color={Colors.gold} />
+                </TouchableOpacity>
+              </View>
             )}
-            {item.completed && item.verificationNote ? (
-              <Text style={styles.verificationNote} numberOfLines={1}>
-                <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
-              </Text>
-            ) : null}
           </View>
         </View>
-        <View style={styles.itemRight}>
-          <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
-            {item.completed ? item.points - hintPenalty(item) : item.points}pts
-          </Text>
-          {!item.completed && (
-            <View style={styles.itemActions}>
-              <TouchableOpacity
-                style={styles.deleteItemBtn}
-                onPress={() => handleDeleteItem(item)}
-                disabled={swappingId !== null}
-              >
-                <FontAwesome name="trash" size={13} color={Colors.textMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.swapBtn}
-                onPress={() => handleSwap(item)}
-                disabled={isSwapping || swappingId !== null}
-              >
-                {isSwapping ? (
-                  <ActivityIndicator size="small" color={Colors.textSecondary} />
-                ) : (
-                  <FontAwesome name="refresh" size={13} color={Colors.textSecondary} />
-                )}
-              </TouchableOpacity>
-              {(item.sublocation || item.geocodeQuery) && (
-                <TouchableOpacity
-                  style={styles.navigateBtn}
-                  onPress={() => handleNavigate(item)}
-                  disabled={isNavigating}
-                >
-                  {isNavigating ? (
-                    <ActivityIndicator size="small" color={Colors.blue} />
-                  ) : (
-                    <FontAwesome name="location-arrow" size={14} color={Colors.blue} />
-                  )}
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={styles.captureBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
-                }}
-              >
-                <FontAwesome name="camera" size={14} color={Colors.gold} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {isNearby && (
+          <TouchableOpacity
+            style={styles.nearbyBanner}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
+            }}
+          >
+            <FontAwesome name="map-marker" size={11} color={Colors.green} />
+            <Text style={styles.nearbyBannerText}>You're here — snap it!</Text>
+            <FontAwesome name="camera" size={11} color={Colors.green} />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };  // close renderRow
@@ -396,6 +525,13 @@ export default function HuntScreen() {
           <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct === 100 ? Colors.green : Colors.gold }]} />
         </View>
 
+        {distLabel && (
+          <View style={styles.distanceRow}>
+            <FontAwesome name="road" size={11} color={Colors.textMuted} />
+            <Text style={styles.distanceText}>{distLabel} straight-line</Text>
+          </View>
+        )}
+
         {pct === 100 && (
           <TouchableOpacity
             style={styles.completedBanner}
@@ -409,18 +545,8 @@ export default function HuntScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Map + Tune buttons */}
+        {/* Tune + Co-op + Route buttons */}
         <View style={styles.headerBtns}>
-          <TouchableOpacity
-            style={styles.mapBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push({ pathname: '/hunt/map', params: { id: hunt.id } });
-            }}
-          >
-            <FontAwesome name="map" size={14} color={Colors.blue} />
-            <Text style={styles.mapBtnText}>Map</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.tuneBtn}
             onPress={() => {
@@ -435,14 +561,65 @@ export default function HuntScreen() {
             ) : (
               <>
                 <FontAwesome name="magic" size={14} color={Colors.purple} />
-                <Text style={styles.tuneBtnText}>Tune Hunt</Text>
+                <Text style={styles.tuneBtnText}>Tune</Text>
               </>
             )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.coopBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setCoopPlayerName(randomPlayerName());
+              setCoopModalVisible(true);
+            }}
+            disabled={isCreatingCoop}
+          >
+            {isCreatingCoop ? (
+              <ActivityIndicator size="small" color={Colors.purple} />
+            ) : (
+              <>
+                <FontAwesome name="group" size={13} color={Colors.purple} />
+                <Text style={styles.coopBtnText}>Co-op</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.routeBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              openRouteInMaps(
+                hunt.coords ?? null,
+                hunt.items.map((i) => ({ coords: i.coords, query: i.geocodeQuery ?? i.sublocation ?? i.name })),
+              );
+            }}
+          >
+            <FontAwesome name="map" size={13} color={Colors.blue} />
+            <Text style={styles.routeBtnText}>Route</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <Text style={styles.itemsHeading}>Items</Text>
+    </View>
+  );
+
+  const Footer = () => (
+    <View style={styles.footer}>
+      <TouchableOpacity style={styles.publishBtn} onPress={handlePublish} disabled={isPublishing}>
+        {isPublishing
+          ? <ActivityIndicator size="small" color={Colors.gold} />
+          : <>
+              <FontAwesome name="globe" size={13} color={Colors.gold} />
+              <Text style={styles.publishBtnText}>
+                {hunt!.publishedCode ? 'In Library ✓' : 'Publish to Library'}
+              </Text>
+            </>
+        }
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+        <FontAwesome name="trash" size={13} color={Colors.red} />
+        <Text style={styles.deleteBtnText}>Delete Hunt</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -459,14 +636,10 @@ export default function HuntScreen() {
         keyExtractor={(row) => row.type === 'item' ? row.item.id : row.key}
         renderItem={renderRow}
         ListHeaderComponent={Header}
+        ListFooterComponent={Footer}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-
-      <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-        <FontAwesome name="trash" size={14} color={Colors.red} />
-        <Text style={styles.deleteBtnText}>Delete Hunt</Text>
-      </TouchableOpacity>
 
       {/* Tune Hunt modal */}
       <Modal
@@ -505,6 +678,53 @@ export default function HuntScreen() {
               >
                 <FontAwesome name="magic" size={13} color="#fff" />
                 <Text style={[styles.modalConfirmText, { color: '#fff' }]}>Tune It</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Co-op modal */}
+      <Modal
+        visible={coopModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCoopModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Start Co-op Hunt</Text>
+            <Text style={styles.modalSubtitle}>Your team shares items in real-time. Anyone can complete any stop.</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Your display name"
+              placeholderTextColor={Colors.textMuted}
+              value={coopPlayerName}
+              onChangeText={setCoopPlayerName}
+              maxLength={30}
+              autoFocus
+            />
+            <Text style={styles.modalHint}>Others join with the code you'll get after starting.</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setCoopModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: Colors.purple }, (!coopPlayerName.trim() || isCreatingCoop) && { opacity: 0.6 }]}
+                onPress={handleCreateCoop}
+                disabled={!coopPlayerName.trim() || isCreatingCoop}
+              >
+                {isCreatingCoop ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <FontAwesome name="group" size={13} color="#fff" />
+                    <Text style={[styles.modalConfirmText, { color: '#fff' }]}>Start Co-op</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -557,6 +777,47 @@ export default function HuntScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Publish confirmation modal */}
+      <Modal
+        visible={publishModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPublishModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {hunt.publishedCode && !isPublishing ? 'Already in Library' : 'Published to Library!'}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              Share this code so others can discover and play your hunt.
+            </Text>
+            <View style={styles.publishCodeBox}>
+              <Text style={styles.publishCodeText}>{hunt.publishedCode ?? ''}</Text>
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setPublishModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Dismiss</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={() => {
+                  Share.share({
+                    message: `Play my Loot Goose hunt in ${hunt.location}! Code: ${hunt.publishedCode}`,
+                  });
+                }}
+              >
+                <FontAwesome name="share" size={13} color="#000" />
+                <Text style={styles.modalConfirmText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -564,7 +825,7 @@ export default function HuntScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 16, paddingBottom: 80 },
+  list: { padding: 16, paddingBottom: 24 },
 
   statsCard: {
     backgroundColor: Colors.card, borderRadius: 16, padding: 20,
@@ -581,6 +842,12 @@ const styles = StyleSheet.create({
   progressBar: { height: 8, backgroundColor: Colors.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 12 },
   progressFill: { height: '100%', borderRadius: 4 },
 
+  distanceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    marginBottom: 10,
+  },
+  distanceText: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
+
   completedBanner: {
     backgroundColor: Colors.greenLight, borderRadius: 10, padding: 12,
     alignItems: 'center', marginBottom: 12,
@@ -588,25 +855,45 @@ const styles = StyleSheet.create({
   completedBannerText: { color: Colors.green, fontWeight: '700', fontSize: 14 },
 
   headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  mapBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
-  },
-  mapBtnText: { fontSize: 14, fontWeight: '700', color: Colors.blue },
   tuneBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: `${Colors.purple}30`,
   },
   tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
+  coopBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.purple}30`,
+  },
+  coopBtnText: { fontSize: 13, fontWeight: '700', color: Colors.purple },
+  routeBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.blue}30`,
+  },
+  routeBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
+
+  itemThumb: {
+    width: 52, height: 52, borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
 
   itemsHeading: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
 
   itemCard: {
     backgroundColor: Colors.card, borderRadius: 14, padding: 14, marginBottom: 10,
-    flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: Colors.border,
   },
+  itemCardRow: { flexDirection: 'row', alignItems: 'flex-start' },
   itemCardDone: { opacity: 0.6 },
+  itemCardNearby: { borderColor: Colors.green, backgroundColor: `${Colors.green}08` },
+  nearbyBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: `${Colors.green}15`, borderWidth: 1, borderColor: `${Colors.green}40`,
+  },
+  nearbyBannerText: { fontSize: 12, fontWeight: '700', color: Colors.green },
   itemLeft: { flex: 1, flexDirection: 'row', gap: 12 },
   itemNumber: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
@@ -695,10 +982,32 @@ const styles = StyleSheet.create({
   insertPillText: { fontSize: 12, fontWeight: '700', color: Colors.purple },
   insertIcon: { paddingHorizontal: 12 },
 
-  deleteBtn: {
-    position: 'absolute', bottom: 20, alignSelf: 'center', flexDirection: 'row',
-    alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10,
-    borderRadius: 20, backgroundColor: Colors.redLight,
+  footer: {
+    marginTop: 8,
+    gap: 10,
+    paddingBottom: 8,
   },
-  deleteBtnText: { color: Colors.red, fontWeight: '600', fontSize: 14 },
+  publishBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1, borderColor: `${Colors.gold}55`,
+    backgroundColor: `${Colors.gold}12`,
+  },
+  publishBtnText: { color: Colors.gold, fontWeight: '700', fontSize: 14 },
+
+  publishCodeBox: {
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 16, marginBottom: 20, alignItems: 'center',
+  },
+  publishCodeText: {
+    fontSize: 32, fontWeight: '800', color: Colors.text,
+    letterSpacing: 10, textAlign: 'center',
+  },
+
+  deleteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: Colors.redLight,
+  },
+  deleteBtnText: { color: Colors.red, fontWeight: '700', fontSize: 14 },
 });

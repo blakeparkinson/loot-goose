@@ -154,6 +154,44 @@ export async function tuneHunt(params: {
   }));
 }
 
+// --- Co-op ---
+
+export interface CoopCompletion {
+  id: string;
+  session_code: string;
+  item_id: string;
+  player_name: string;
+  verification_note: string | null;
+  completed_at: string;
+}
+
+export interface CoopSessionInfo {
+  huntData: Hunt;
+  completions: CoopCompletion[];
+  players: { name: string; joinedAt: string }[];
+}
+
+export async function createCoopSession(huntData: Hunt, playerName: string): Promise<{ code: string }> {
+  return callEdgeFunction('create-coop-session', { huntData, playerName }, 15000);
+}
+
+export async function joinCoopSession(code: string, playerName: string): Promise<CoopSessionInfo> {
+  return callEdgeFunction('join-coop-session', { code, playerName }, 15000);
+}
+
+export async function completeCoopItem(params: {
+  code: string;
+  itemId: string;
+  playerName: string;
+  verificationNote: string;
+}): Promise<{ ok: boolean; alreadyCompleted?: boolean }> {
+  return callEdgeFunction('complete-coop-item', params, 20000);
+}
+
+export async function loadSharedHunt(code: string): Promise<Hunt> {
+  return callEdgeFunction('load-hunt', { code }, 15000);
+}
+
 export async function swapItem(params: {
   location: string;
   prompt: string;
@@ -176,4 +214,41 @@ export async function swapItem(params: {
     sublocation: data.sublocation,
     geocodeQuery: data.geocodeQuery,
   };
+}
+
+// --- Library ---
+
+export interface LibraryHunt {
+  id: string;
+  code: string;
+  title: string;
+  location: string;
+  difficulty: HuntDifficulty;
+  totalPoints: number;
+  itemCount: number;
+  plays: number;
+  createdAt: string;
+}
+
+export async function publishHunt(hunt: Hunt): Promise<{ code: string }> {
+  return callEdgeFunction('publish-hunt', { huntData: hunt }, 15000);
+}
+
+export async function browseHunts(query: string): Promise<LibraryHunt[]> {
+  const rows: any[] = await callEdgeFunction('browse-hunts', { query: query.trim(), limit: 30 }, 10000);
+  return rows.map((r) => ({
+    id: r.id,
+    code: r.code,
+    title: r.title,
+    location: r.location,
+    difficulty: r.difficulty as HuntDifficulty,
+    totalPoints: r.total_points,
+    itemCount: r.item_count,
+    plays: r.plays,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function loadLibraryHunt(code: string): Promise<Hunt> {
+  return callEdgeFunction('load-library-hunt', { code }, 15000);
 }

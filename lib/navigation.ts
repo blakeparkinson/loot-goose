@@ -42,6 +42,35 @@ export async function openNativeMapsDirections(coords: Coords): Promise<void> {
   }
 }
 
+/**
+ * Open Google Maps with multiple stops as waypoints.
+ * Stops are provided in the desired visit order.
+ * Each stop can be either lat/lng coords or a text query string.
+ * Uses the Google Maps web URL which opens in the Google Maps app when installed.
+ */
+export async function openRouteInMaps(
+  origin: Coords | null,
+  stops: Array<{ coords?: Coords; query?: string }>,
+): Promise<void> {
+  const valid = stops.filter((s) => s.coords || s.query);
+  if (valid.length === 0) return;
+
+  const toStr = (s: { coords?: Coords; query?: string }) =>
+    s.coords
+      ? `${s.coords.latitude},${s.coords.longitude}`
+      : encodeURIComponent(s.query!);
+
+  const destination = toStr(valid[valid.length - 1]);
+  const waypoints = valid.slice(0, -1).map(toStr).join('|');
+
+  let url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking';
+  if (origin) url += `&origin=${origin.latitude},${origin.longitude}`;
+  if (waypoints) url += `&waypoints=${waypoints}`;
+  url += `&destination=${destination}`;
+
+  await Linking.openURL(url);
+}
+
 export async function openMapsSearch(query: string): Promise<void> {
   const encoded = encodeURIComponent(query);
   const url = Platform.select({
