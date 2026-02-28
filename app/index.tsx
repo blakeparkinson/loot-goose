@@ -6,12 +6,14 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActionSheetIOS,
   ActivityIndicator,
   Modal,
   TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
@@ -69,6 +71,7 @@ const GOOSE_LOOSE_MESSAGES = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const hunts = useAppStore((s) => s.hunts);
   const saveHunt = useAppStore((s) => s.saveHunt);
   const deleteHunt = useAppStore((s) => s.deleteHunt);
@@ -83,6 +86,25 @@ export default function HomeScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [joinPlayerName, setJoinPlayerName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+
+  const handleMore = () => {
+    const options = ['Browse Library', 'Join a Hunt', 'Cancel'];
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: 2 },
+        (i) => {
+          if (i === 0) router.push('/library');
+          else if (i === 1) { setJoinCode(''); setJoinModalVisible(true); }
+        },
+      );
+    } else {
+      Alert.alert('More', undefined, [
+        { text: 'Browse Library', onPress: () => router.push('/library') },
+        { text: 'Join a Hunt', onPress: () => { setJoinCode(''); setJoinModalVisible(true); } },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  };
 
   const handleDelete = (hunt: Hunt) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -298,6 +320,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={{ flex: 1 }}>
       {hunts.length > 0 && (
         <View style={styles.searchBar}>
           <FontAwesome name="search" size={14} color={Colors.textMuted} style={styles.searchIcon} />
@@ -329,8 +352,9 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
       />
 
-      <View style={styles.fabRow}>
-        {/* Goose Loose */}
+      </View>
+      {/* Bottom bar — not floating, list ends here */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
         <TouchableOpacity
           style={[styles.gooseLooseBtn, gooseLooseLoading && { opacity: 0.7 }]}
           onPress={handleGooseLoose}
@@ -350,7 +374,6 @@ export default function HomeScreen() {
           )}
         </TouchableOpacity>
 
-        {/* New Hunt */}
         <TouchableOpacity
           style={styles.fab}
           onPress={() => {
@@ -359,35 +382,16 @@ export default function HomeScreen() {
           }}
           activeOpacity={0.85}
         >
-          <FontAwesome name="plus" size={20} color="#000" />
+          <FontAwesome name="plus" size={18} color="#000" />
           <Text style={styles.fabText}>New Hunt</Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Secondary row: Library + Join */}
-      <View style={styles.secondaryRow}>
         <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/library');
-          }}
+          style={styles.moreBtn}
+          onPress={handleMore}
           activeOpacity={0.7}
         >
-          <FontAwesome name="book" size={14} color={Colors.textSecondary} />
-          <Text style={styles.secondaryBtnText}>Library</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setJoinCode('');
-            setJoinModalVisible(true);
-          }}
-          activeOpacity={0.7}
-        >
-          <FontAwesome name="link" size={13} color={Colors.textSecondary} />
-          <Text style={styles.secondaryBtnText}>Join a Hunt</Text>
+          <FontAwesome name="ellipsis-h" size={18} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -452,8 +456,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  list: { padding: 16, paddingBottom: 150, flexGrow: 1 },
+  container: { flex: 1, backgroundColor: Colors.bg, flexDirection: 'column' },
+  list: { padding: 16, paddingBottom: 16, flexGrow: 1 },
 
   searchBar: {
     flexDirection: 'row',
@@ -523,13 +527,14 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 8 },
   emptySubtitle: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
 
-  fabRow: {
-    position: 'absolute',
-    bottom: 66,
-    left: 16,
-    right: 16,
+  bottomBar: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.bg,
     alignItems: 'stretch',
   },
 
@@ -566,27 +571,15 @@ const styles = StyleSheet.create({
   },
   fabText: { fontSize: 15, fontWeight: '800', color: '#000' },
 
-  secondaryRow: {
-    position: 'absolute',
-    bottom: 8,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  secondaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 14,
+  moreBtn: {
+    width: 52,
     borderRadius: 16,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary },
 
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',

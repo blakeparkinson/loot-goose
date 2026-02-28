@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActionSheetIOS,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -216,6 +217,36 @@ export default function HuntScreen() {
         },
       },
     ]);
+  };
+
+  const handleMenuPress = (item: HuntItem) => {
+    const hasLocation = !!(item.sublocation || item.geocodeQuery);
+    const options = [
+      ...(hasLocation ? ['Get Directions'] : []),
+      'Swap Stop',
+      'Remove Stop',
+      'Cancel',
+    ];
+    const cancelIndex = options.length - 1;
+    const destructiveIndex = options.indexOf('Remove Stop');
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
+        (i) => {
+          if (options[i] === 'Get Directions') handleNavigate(item);
+          else if (options[i] === 'Swap Stop') handleSwap(item);
+          else if (options[i] === 'Remove Stop') handleDeleteItem(item);
+        },
+      );
+    } else {
+      Alert.alert('Stop Options', undefined, [
+        ...(hasLocation ? [{ text: 'Get Directions', onPress: () => handleNavigate(item) }] : []),
+        { text: 'Swap Stop', onPress: () => handleSwap(item) },
+        { text: 'Remove Stop', style: 'destructive' as const, onPress: () => handleDeleteItem(item) },
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
   };
 
   const handleTuneHunt = async () => {
@@ -438,51 +469,32 @@ export default function HuntScreen() {
               <Image source={{ uri: item.photoUri }} style={styles.itemThumb} />
             )}
             {!item.completed && (
-              <View style={styles.itemActions}>
-                <TouchableOpacity
-                  style={styles.deleteItemBtn}
-                  onPress={() => handleDeleteItem(item)}
-                  disabled={swappingId !== null}
-                >
-                  <FontAwesome name="trash" size={13} color={Colors.textMuted} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.swapBtn}
-                  onPress={() => handleSwap(item)}
-                  disabled={isSwapping || swappingId !== null}
-                >
-                  {isSwapping ? (
-                    <ActivityIndicator size="small" color={Colors.textSecondary} />
-                  ) : (
-                    <FontAwesome name="refresh" size={13} color={Colors.textSecondary} />
-                  )}
-                </TouchableOpacity>
-                {(item.sublocation || item.geocodeQuery) && (
-                  <TouchableOpacity
-                    style={styles.navigateBtn}
-                    onPress={() => handleNavigate(item)}
-                    disabled={isNavigating}
-                  >
-                    {isNavigating ? (
-                      <ActivityIndicator size="small" color={Colors.blue} />
-                    ) : (
-                      <FontAwesome name="location-arrow" size={14} color={Colors.blue} />
-                    )}
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.captureBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
-                  }}
-                >
-                  <FontAwesome name="camera" size={14} color={Colors.gold} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.menuBtn}
+                onPress={() => handleMenuPress(item)}
+                disabled={swappingId !== null}
+              >
+                {isSwapping || isNavigating
+                  ? <ActivityIndicator size="small" color={Colors.textMuted} />
+                  : <FontAwesome name="ellipsis-v" size={16} color={Colors.textMuted} />
+                }
+              </TouchableOpacity>
             )}
           </View>
         </View>
+        {!item.completed && (
+          <TouchableOpacity
+            style={styles.snapBar}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
+            }}
+            activeOpacity={0.8}
+          >
+            <FontAwesome name="camera" size={16} color="#000" />
+            <Text style={styles.snapBarText}>Snap It</Text>
+          </TouchableOpacity>
+        )}
         {isNearby && (
           <TouchableOpacity
             style={styles.nearbyBanner}
@@ -920,23 +932,16 @@ const styles = StyleSheet.create({
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
-  itemActions: { flexDirection: 'row', gap: 6 },
-  deleteItemBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface,
+  menuBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
     alignItems: 'center', justifyContent: 'center',
   },
-  swapBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surface,
-    alignItems: 'center', justifyContent: 'center',
+  snapBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: Colors.gold, borderRadius: 10,
+    paddingVertical: 11, marginTop: 10,
   },
-  navigateBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.blueLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  captureBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.goldLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  snapBarText: { fontSize: 15, fontWeight: '800', color: '#000' },
 
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
