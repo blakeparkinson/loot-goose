@@ -8,6 +8,12 @@ export default {
     icon: './assets/icon.png',
     userInterfaceStyle: 'dark',
     newArchEnabled: true,
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
+    updates: {
+      url: 'https://u.expo.dev/cfff5d3d-1899-423d-88fa-e43ebd9c3c5a',
+    },
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'cover',
@@ -51,6 +57,7 @@ export default {
     },
     plugins: [
       'expo-router',
+      'expo-updates',
       'expo-secure-store',
       [
         'expo-camera',
