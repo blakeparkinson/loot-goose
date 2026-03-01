@@ -217,7 +217,7 @@ CRITICAL RULES:
 
 2. GEOGRAPHIC ORDER: Stops must be sequenced so a player travels in ONE DIRECTION along the described route from start to finish. Never backtrack. If a transit line is mentioned (streetcar, bus, subway), stops must follow that line's actual path in order.
 
-3. REAL PLACES ONLY: Every stop must be a real, named, specific place that actually exists — a business, landmark, monument, mural, park feature, or notable intersection. Absolutely NO vague descriptions like "a colorful wall", "a sunny spot", or "a historic building". Use the actual name.
+3. REAL PLACES ONLY — NO HALLUCINATION: Every stop must be a real, named, specific place you are HIGHLY CONFIDENT exists right now. This is the most important quality rule. If you are not certain a business is real and currently operating at a specific address, do NOT include it. Prefer parks, trails, dog parks, libraries, post offices, fire stations, schools, chain businesses, and well-known public landmarks over local businesses you cannot verify. If the area is a small town or suburb with limited matching places, use FEWER stops rather than invent ones. It is far better to return 3 verified stops than 6 hallucinated ones.
 
 4. TRANSIT AWARENESS: If a transit line is mentioned, each stop must be within a 2-block walk of that line. Name the nearest transit stop in the sublocation field.
 
@@ -279,11 +279,17 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
       return coords;
     });
 
-    // Attach coords to each item
-    const itemsWithCoords = (data.items as any[]).map((item: any, i: number) => ({
-      ...item,
-      coords: filteredStopCoords[i],
-    }));
+    // Attach coords to each item, dropping any that failed to geocode.
+    // A geocoding failure is a strong signal the place was hallucinated.
+    const itemsWithCoords = (data.items as any[])
+      .map((item: any, i: number) => ({ ...item, coords: filteredStopCoords[i] }))
+      .filter((item) => {
+        if (!item.coords) {
+          console.log(`Dropping stop with no coords (likely hallucinated): ${item.name}`);
+          return false;
+        }
+        return true;
+      });
 
     // Use Google Directions API to get optimized walking order (falls back to nearest-neighbor + 2-opt)
     const origin = huntCoords ?? (stopCoords.find(c => c !== null) as { lat: number; lon: number } | null);
