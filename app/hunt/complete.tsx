@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
-import * as Sharing from 'expo-sharing';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
@@ -65,8 +64,8 @@ export default function HuntCompleteScreen() {
 
     Animated.stagger(100, [
       Animated.timing(fadeIn, { toValue: 1, duration: 300, useNativeDriver: false }),
-      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.back(1.5)), useNativeDriver: false }),
+      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.back(1.2)), useNativeDriver: false }),
       Animated.timing(photosSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
     ]).start();
 
@@ -130,8 +129,13 @@ export default function HuntCompleteScreen() {
       }
 
       // Share as image (works correctly on both iOS and Android)
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: 'Share your hunt recap!' });
+      try {
+        const Sharing = await import('expo-sharing');
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'image/jpeg', dialogTitle: 'Share your hunt recap!' });
+        }
+      } catch {
+        // expo-sharing native module not available in this build
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
