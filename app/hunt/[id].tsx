@@ -245,7 +245,7 @@ export default function HuntScreen() {
         { text: 'Swap Stop', onPress: () => handleSwap(item) },
         { text: 'Remove Stop', style: 'destructive' as const, onPress: () => handleDeleteItem(item) },
         { text: 'Cancel', style: 'cancel' as const },
-      ]);
+      ], { cancelable: true });
     }
   };
 
