@@ -61,19 +61,19 @@ export default function HuntCompleteScreen() {
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    Animated.spring(gooseScale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }).start();
+    Animated.spring(gooseScale, { toValue: 1, friction: 4, tension: 160, useNativeDriver: false }).start();
 
     Animated.stagger(100, [
-      Animated.timing(fadeIn, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(photosSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 300, useNativeDriver: false }),
+      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      Animated.timing(photosSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
     ]).start();
 
     const bounceLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(gooseBounce, { toValue: -18, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(gooseBounce, { toValue: 0, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(gooseBounce, { toValue: -18, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        Animated.timing(gooseBounce, { toValue: 0, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
       ])
     );
     bounceLoop.start();
@@ -81,19 +81,19 @@ export default function HuntCompleteScreen() {
     const glowLoop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(glowPulseOuter, { toValue: 0.7 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+          Animated.timing(glowPulseOuter, { toValue: 0.7 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
         ]),
         Animated.parallel([
-          Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(glowPulseOuter, { toValue: 0.25 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+          Animated.timing(glowPulseOuter, { toValue: 0.25 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
         ]),
       ])
     );
     glowLoop.start();
 
     const spinLoop = Animated.loop(
-      Animated.timing(starSpin, { toValue: 1, duration: 3000, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(starSpin, { toValue: 1, duration: 3000, easing: Easing.linear, useNativeDriver: false })
     );
     spinLoop.start();
 
