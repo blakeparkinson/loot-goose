@@ -53,6 +53,10 @@ export default function HuntCompleteScreen() {
   const glowPulse = useRef(new Animated.Value(0.3)).current;
   const glowPulseOuter = useRef(new Animated.Value(0.3 * 0.4)).current;
   const starSpin = useRef(new Animated.Value(0)).current;
+  // Compute interpolation once in a ref — recreating it each render causes native driver issues
+  const starRotate = useRef(
+    starSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] })
+  ).current;
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -111,8 +115,6 @@ export default function HuntCompleteScreen() {
     hunt.startedAt && hunt.completedAt
       ? formatDuration(new Date(hunt.completedAt).getTime() - new Date(hunt.startedAt).getTime())
       : null;
-
-  const starRotate = starSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   const handleSaveShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -209,23 +211,29 @@ export default function HuntCompleteScreen() {
           <Animated.View style={[styles.glowRing, { opacity: glowPulse }]} />
           <Animated.View style={[styles.glowRingOuter, { opacity: glowPulseOuter }]} />
 
-          <Animated.Text style={[styles.starTL, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
-          <Animated.Text style={[styles.starTR, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
-          <Animated.Text style={[styles.starBL, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
-          <Animated.Text style={[styles.starBR, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
+          <Animated.View style={[styles.starTL, { transform: [{ rotate: starRotate }] }]}>
+            <Text style={styles.starTLText}>✨</Text>
+          </Animated.View>
+          <Animated.View style={[styles.starTR, { transform: [{ rotate: starRotate }] }]}>
+            <Text style={styles.starTRText}>🪙</Text>
+          </Animated.View>
+          <Animated.View style={[styles.starBL, { transform: [{ rotate: starRotate }] }]}>
+            <Text style={styles.starBLText}>🪙</Text>
+          </Animated.View>
+          <Animated.View style={[styles.starBR, { transform: [{ rotate: starRotate }] }]}>
+            <Text style={styles.starBRText}>✨</Text>
+          </Animated.View>
 
-          <Animated.Text
-            style={[styles.goose, { transform: [{ scale: gooseScale }, { translateY: gooseBounce }] }]}
-          >
-            🪿
-          </Animated.Text>
+          <Animated.View style={{ transform: [{ scale: gooseScale }, { translateY: gooseBounce }], marginBottom: 16 }}>
+            <Text style={styles.goose}>🪿</Text>
+          </Animated.View>
 
-          <Animated.Text style={[styles.heroTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            HUNT COMPLETE!
-          </Animated.Text>
-          <Animated.Text style={[styles.huntTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            {hunt.title}
-          </Animated.Text>
+          <Animated.View style={{ opacity: fadeIn, transform: [{ translateY: titleSlide }] }}>
+            <Text style={styles.heroTitle}>HUNT COMPLETE!</Text>
+          </Animated.View>
+          <Animated.View style={{ opacity: fadeIn, transform: [{ translateY: titleSlide }] }}>
+            <Text style={styles.huntTitle}>{hunt.title}</Text>
+          </Animated.View>
           <Animated.View style={[styles.huntLocationRow, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
             <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} />
             <Text style={styles.huntLocation}> {hunt.location}</Text>
@@ -440,11 +448,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.green,
   },
-  starTL: { position: 'absolute', top: 52, left: '12%', fontSize: 24 },
-  starTR: { position: 'absolute', top: 44, right: '10%', fontSize: 22 },
-  starBL: { position: 'absolute', top: 160, left: '8%', fontSize: 20 },
-  starBR: { position: 'absolute', top: 152, right: '6%', fontSize: 22 },
-  goose: { fontSize: 100, marginBottom: 16 },
+  starTL: { position: 'absolute', top: 52, left: '12%' },
+  starTLText: { fontSize: 24 },
+  starTR: { position: 'absolute', top: 44, right: '10%' },
+  starTRText: { fontSize: 22 },
+  starBL: { position: 'absolute', top: 160, left: '8%' },
+  starBLText: { fontSize: 20 },
+  starBR: { position: 'absolute', top: 152, right: '6%' },
+  starBRText: { fontSize: 22 },
+  goose: { fontSize: 100 },
   heroTitle: {
     fontSize: 28,
     fontWeight: '900',
