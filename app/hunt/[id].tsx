@@ -482,7 +482,7 @@ export default function HuntScreen() {
             )}
           </View>
         </View>
-        {!item.completed && (
+        {!item.completed && !isNearby && (
           <TouchableOpacity
             style={styles.snapBar}
             onPress={() => {
