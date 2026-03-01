@@ -51,6 +51,7 @@ export default function HuntCompleteScreen() {
   const photosSlide = useRef(new Animated.Value(30)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
   const glowPulse = useRef(new Animated.Value(0.3)).current;
+  const glowPulseOuter = useRef(new Animated.Value(0.3 * 0.4)).current;
   const starSpin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -75,8 +76,14 @@ export default function HuntCompleteScreen() {
 
     const glowLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(glowPulse, { toValue: 0.7, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulseOuter, { toValue: 0.7 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowPulse, { toValue: 0.25, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulseOuter, { toValue: 0.25 * 0.4, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
       ])
     );
     glowLoop.start();
@@ -200,7 +207,7 @@ export default function HuntCompleteScreen() {
         {/* Animated hero area */}
         <View style={styles.hero}>
           <Animated.View style={[styles.glowRing, { opacity: glowPulse }]} />
-          <Animated.View style={[styles.glowRingOuter, { opacity: Animated.multiply(glowPulse, 0.4) as any }]} />
+          <Animated.View style={[styles.glowRingOuter, { opacity: glowPulseOuter }]} />
 
           <Animated.Text style={[styles.starTL, { transform: [{ rotate: starRotate }] }]}>✨</Animated.Text>
           <Animated.Text style={[styles.starTR, { transform: [{ rotate: starRotate }] }]}>🪙</Animated.Text>
