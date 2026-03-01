@@ -61,8 +61,8 @@ export default function HuntCompleteScreen() {
 
     Animated.stagger(100, [
       Animated.timing(fadeIn, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
-      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
+      Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(statsSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(photosSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
 
@@ -226,9 +226,10 @@ export default function HuntCompleteScreen() {
           <Animated.Text style={[styles.huntTitle, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
             {hunt.title}
           </Animated.Text>
-          <Animated.Text style={[styles.huntLocation, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} /> {hunt.location}
-          </Animated.Text>
+          <Animated.View style={[styles.huntLocationRow, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
+            <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} />
+            <Text style={styles.huntLocation}> {hunt.location}</Text>
+          </Animated.View>
         </View>
 
         {/* Stats */}
@@ -458,6 +459,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
   },
+  huntLocationRow: { flexDirection: 'row', alignItems: 'center' },
   huntLocation: { fontSize: 14, color: Colors.textSecondary },
 
   statsCard: {
