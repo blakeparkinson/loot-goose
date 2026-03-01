@@ -53,21 +53,37 @@ export default function CreateScreen() {
   const saveHunt = useAppStore((s) => s.saveHunt);
 
   const [location, setLocation] = useState('');
+  const [isLocating, setIsLocating] = useState(true);
   const [prompt, setPrompt] = useState('');
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<HuntDifficulty>('medium');
   const [stopCount, setStopCount] = useState(6);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
 
-  // Silently fetch weather for user's current GPS position on mount
+  // Fetch GPS on mount: reverse geocode for location field + weather
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const info = await fetchWeather({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      setWeather(info);
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { latitude, longitude } = loc.coords;
+
+        // Reverse geocode to get a human-readable location string
+        const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (geo) {
+          const parts = [geo.district || geo.street, geo.city, geo.region].filter(Boolean);
+          setLocation(parts.join(', '));
+        }
+
+        // Fetch weather in parallel (already have coords)
+        const info = await fetchWeather({ latitude, longitude });
+        setWeather(info);
+      } finally {
+        setIsLocating(false);
+      }
     })();
   }, []);
 
@@ -91,9 +107,10 @@ export default function CreateScreen() {
     }, 3000);
 
     try {
+      const fullPrompt = [prompt.trim(), ...selectedSuggestions].filter(Boolean).join(', ');
       const hunt = await generateHunt({
         location: location.trim(),
-        prompt: prompt.trim(),
+        prompt: fullPrompt,
         difficulty,
         count: stopCount,
         weather: weather?.context,
@@ -133,14 +150,18 @@ export default function CreateScreen() {
         {/* Location */}
         <View style={styles.section}>
           <Text style={styles.label}>Where are you?</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Central Park, NYC"
-            placeholderTextColor={Colors.textMuted}
-            value={location}
-            onChangeText={setLocation}
-            returnKeyType="next"
-          />
+          <View style={styles.locationInputRow}>
+            <TextInput
+              style={[styles.input, styles.locationInput]}
+              placeholder={isLocating ? 'Detecting location...' : 'e.g. Central Park, NYC'}
+              placeholderTextColor={Colors.textMuted}
+              value={location}
+              onChangeText={setLocation}
+              returnKeyType="next"
+              editable={!isLocating}
+            />
+            {isLocating && <ActivityIndicator style={styles.locationSpinner} size="small" color={Colors.textMuted} />}
+          </View>
         </View>
 
         {/* Prompt */}
@@ -157,18 +178,23 @@ export default function CreateScreen() {
             textAlignVertical="top"
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestions}>
-            {PROMPT_SUGGESTIONS.map((s) => (
-              <TouchableOpacity
-                key={s}
-                style={styles.suggestion}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setPrompt(s);
-                }}
-              >
-                <Text style={styles.suggestionText}>{s}</Text>
-              </TouchableOpacity>
-            ))}
+            {PROMPT_SUGGESTIONS.map((s) => {
+              const active = selectedSuggestions.includes(s);
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.suggestion, active && styles.suggestionActive]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedSuggestions((prev) =>
+                      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                    );
+                  }}
+                >
+                  <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>{s}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -273,6 +299,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
   },
 
+  locationInputRow: { position: 'relative' },
+  locationInput: { paddingRight: 44 },
+  locationSpinner: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+
   input: {
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 14, padding: 16, fontSize: 16, color: Colors.text,
@@ -284,7 +314,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border,
   },
+  suggestionActive: { backgroundColor: `${Colors.gold}20`, borderColor: Colors.gold },
   suggestionText: { fontSize: 13, color: Colors.textSecondary },
+  suggestionTextActive: { color: Colors.gold, fontWeight: '700' },
 
   stepperRow: {
     flexDirection: 'row', alignItems: 'center', gap: 16,

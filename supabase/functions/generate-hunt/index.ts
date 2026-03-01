@@ -205,9 +205,15 @@ Route & theme: ${prompt}
 Number of stops: ${count}
 Points range: ${minPts}-${maxPts} per stop${weatherLine}
 
-CRITICAL RULES — follow these exactly:
+STEP 1 — EXTRACT DISTANCE CONSTRAINT:
+Before placing any stops, read the "Route & theme" above and check if the user stated a distance, travel time, or size (e.g. "less than a mile", "under 2 miles", "quick 20 min walk", "half mile roundtrip", "drive around", "within a few blocks"). If they did, that is the MAX ROUTE DISTANCE and overrides everything below. If no distance was stated, use a default of 1.5 miles (2.4 km).
 
-1. WALKABLE DISTANCE: The entire route must be completable on foot. Total straight-line distance across all stops must be under 1.5 miles (2.5 km). No single gap between consecutive stops should exceed 0.4 miles (650 m). All stops must be in the same walkable neighborhood — do NOT spread stops across different parts of a city.
+STEP 2 — ENFORCE DISTANCE FIRST:
+With your extracted or default max distance, divide it by ${count} to get the max gap per stop. No single gap between consecutive stops may exceed that value. All stops must be clustered tightly within the max distance — do NOT spread them across different parts of the city.
+
+CRITICAL RULES:
+
+1. DISTANCE (HIGHEST PRIORITY): Honor the max route distance from Step 1 absolutely. This is the #1 constraint. Sacrifice theme variety, number of stops, or anything else before violating the distance limit.
 
 2. GEOGRAPHIC ORDER: Stops must be sequenced so a player travels in ONE DIRECTION along the described route from start to finish. Never backtrack. If a transit line is mentioned (streetcar, bus, subway), stops must follow that line's actual path in order.
 
