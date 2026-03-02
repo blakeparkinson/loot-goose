@@ -206,18 +206,18 @@ Number of stops: ${count}
 Points range: ${minPts}-${maxPts} per stop${weatherLine}
 
 STEP 1 — EXTRACT DISTANCE CONSTRAINT:
-Before placing any stops, read the "Route & theme" above and check if the user stated a distance, travel time, or size (e.g. "less than a mile", "under 2 miles", "quick 20 min walk", "half mile roundtrip", "drive around", "within a few blocks"). If they did, that is the MAX ROUTE DISTANCE and overrides everything below. If no distance was stated, use a default of 1.5 miles (2.4 km).
+Before placing any stops, read the "Route & theme" above and check if the user stated a distance, travel time, or size (e.g. "less than a mile", "under 2 miles", "quick 20 min walk", "half mile roundtrip", "drive around", "within a few blocks"). If they did, that is the MAX ROUTE DISTANCE. If no distance was stated, use a default of 1.5 miles (2.4 km).
 
-STEP 2 — ENFORCE DISTANCE FIRST:
-With your extracted or default max distance, divide it by ${count} to get the max gap per stop. No single gap between consecutive stops may exceed that value. All stops must be clustered tightly within the max distance — do NOT spread them across different parts of the city.
+STEP 2 — FIT EXACTLY ${count} STOPS WITHIN THE DISTANCE:
+You MUST return EXACTLY ${count} stops — no more, no fewer. This is non-negotiable. Divide the max distance by ${count} to get the spacing budget per stop, and pack the stops accordingly. If stops must be close together to fit the count inside the distance, that is correct behavior.
 
 CRITICAL RULES:
 
-1. DISTANCE (HIGHEST PRIORITY): Honor the max route distance from Step 1 absolutely. This is the #1 constraint. Sacrifice theme variety, number of stops, or anything else before violating the distance limit.
+1. STOP COUNT (HIGHEST PRIORITY): Always return EXACTLY ${count} items in the JSON array. Never skip stops to satisfy the distance — instead, space them more densely.
 
 2. GEOGRAPHIC ORDER: Stops must be sequenced so a player travels in ONE DIRECTION along the described route from start to finish. Never backtrack. If a transit line is mentioned (streetcar, bus, subway), stops must follow that line's actual path in order.
 
-3. REAL PLACES ONLY — NO HALLUCINATION: Every stop must be a real, named, specific place you are HIGHLY CONFIDENT exists right now. This is the most important quality rule. If you are not certain a business is real and currently operating at a specific address, do NOT include it. Prefer parks, trails, dog parks, libraries, post offices, fire stations, schools, chain businesses, and well-known public landmarks over local businesses you cannot verify. If the area is a small town or suburb with limited matching places, use FEWER stops rather than invent ones. It is far better to return 3 verified stops than 6 hallucinated ones.
+3. REAL PLACES ONLY — NO HALLUCINATION: Every stop must be a real, named, specific place you are HIGHLY CONFIDENT exists right now. Do not include a business unless you are certain it is real and currently operating. Prefer parks, trails, libraries, post offices, fire stations, schools, chain businesses, and well-known public landmarks over local businesses you cannot verify. If you struggle to find enough verified places, use public spaces, street corners, or landmark features rather than inventing businesses.
 
 4. TRANSIT AWARENESS: If a transit line is mentioned, each stop must be within a 2-block walk of that line. Name the nearest transit stop in the sublocation field.
 
