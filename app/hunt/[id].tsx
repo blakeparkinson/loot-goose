@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Share,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -424,9 +425,22 @@ export default function HuntScreen() {
               </Text>
               <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
               {!item.completed && item.sublocation && (
-                <Text style={styles.itemSublocation} numberOfLines={1}>
-                  <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
-                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const query = item.coords
+                      ? `${item.coords.latitude},${item.coords.longitude}`
+                      : encodeURIComponent(item.geocodeQuery || item.sublocation!);
+                    const url = Platform.OS === 'ios'
+                      ? `maps://?q=${query}`
+                      : `geo:0,0?q=${query}`;
+                    Linking.openURL(url);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.itemSublocation} numberOfLines={1}>
+                    <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
+                  </Text>
+                </TouchableOpacity>
               )}
               {!item.completed && (
                 item.hintRevealed ? (
