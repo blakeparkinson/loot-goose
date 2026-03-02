@@ -85,7 +85,7 @@ async function optimizeRouteOrder<T extends { coords: { lat: number; lon: number
     const coordStr = allPoints.map(c => `${c.lon},${c.lat}`).join(';');
 
     const url = `https://router.project-osrm.org/trip/v1/foot/${coordStr}` +
-      `?roundtrip=true&source=first&steps=false&overview=false`;
+      `?roundtrip=false&source=first&destination=last&steps=false&overview=false`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     const data = await res.json();
@@ -205,17 +205,26 @@ Route & theme: ${prompt}
 Number of stops: ${count}
 Points range: ${minPts}-${maxPts} per stop${weatherLine}
 
-STEP 1 — EXTRACT DISTANCE CONSTRAINT:
-Before placing any stops, read the "Route & theme" above and check if the user stated a distance, travel time, or size (e.g. "less than a mile", "under 2 miles", "quick 20 min walk", "half mile roundtrip", "drive around", "within a few blocks"). If they did, that is the MAX ROUTE DISTANCE. If no distance was stated, use a default of 1.5 miles (2.4 km).
+STEP 1 — IDENTIFY ROUTE STRUCTURE:
+Read the "Route & theme" carefully and classify it as one of:
+- ROUND-TRIP: User mentions going TO a specific destination AND returning/coming back (e.g. "starting at X going to Y and back", "find stops along the way and on the way back"). The destination is a real named place that acts as the MIDPOINT.
+- ONE-WAY: User describes a single direction or a loop with no named destination.
 
-STEP 2 — FIT EXACTLY ${count} STOPS WITHIN THE DISTANCE:
-You MUST return EXACTLY ${count} stops — no more, no fewer. This is non-negotiable. Divide the max distance by ${count} to get the spacing budget per stop, and pack the stops accordingly. If stops must be close together to fit the count inside the distance, that is correct behavior.
+If ROUND-TRIP: Split the ${count} stops evenly — roughly half on the OUTBOUND leg (start → destination) and half on the RETURN leg (destination → start). The named destination itself should be the final outbound stop or the bridge between the two legs. Order ALL stops as: [outbound stop 1, outbound stop 2, ..., destination, return stop 1, return stop 2, ...]. Outbound stops must lie geographically between the start and destination. Return stops must lie geographically between the destination and the start, on a DIFFERENT PATH so players see new things.
+
+If ONE-WAY: All stops follow the route in a single direction from start to finish.
+
+STEP 2 — EXTRACT DISTANCE CONSTRAINT:
+Check if the user stated a distance, travel time, or size. If they did, that is the MAX ROUTE DISTANCE (one-way for round-trips, total for one-way). If no distance was stated, use a default of 1.5 miles (2.4 km) one-way.
+
+STEP 3 — FIT EXACTLY ${count} STOPS:
+You MUST return EXACTLY ${count} stops — no more, no fewer. This is non-negotiable. Space them to fit within the distance. If stops must be close together, that is correct.
 
 CRITICAL RULES:
 
-1. STOP COUNT (HIGHEST PRIORITY): Always return EXACTLY ${count} items in the JSON array. Never skip stops to satisfy the distance — instead, space them more densely.
+1. STOP COUNT (HIGHEST PRIORITY): Always return EXACTLY ${count} items in the JSON array. Never skip stops — space them more densely instead.
 
-2. GEOGRAPHIC ORDER: Stops must be sequenced so a player travels in ONE DIRECTION along the described route from start to finish. Never backtrack. If a transit line is mentioned (streetcar, bus, subway), stops must follow that line's actual path in order.
+2. SEQUENTIAL ORDER: Items in the JSON array must be in the exact order a player walks them. For ONE-WAY routes: strictly start-to-finish. For ROUND-TRIP routes: outbound stops in order → destination → return stops in order. Never mix outbound and return stops. A player should never have to backtrack to an earlier stop.
 
 3. REAL PLACES ONLY — NO HALLUCINATION: Every stop must be a real, named, specific place you are HIGHLY CONFIDENT exists right now. Do not include a business unless you are certain it is real and currently operating. Prefer parks, trails, libraries, post offices, fire stations, schools, chain businesses, and well-known public landmarks over local businesses you cannot verify. If you struggle to find enough verified places, use public spaces, street corners, or landmark features rather than inventing businesses.
 
