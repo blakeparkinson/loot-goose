@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Easing,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -39,6 +42,57 @@ const DIFFICULTY_COLOR: Record<string, string> = {
   medium: Colors.gold,
   hard: Colors.red,
 };
+
+const GOOSE_IMAGE = require('@/assets/icon.png');
+
+function FloatingGoose() {
+  const float = useRef(new Animated.Value(0)).current;
+  const tilt = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, { toValue: -14, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(float, { toValue: 0, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    floatLoop.start();
+
+    const wobble = () => {
+      Animated.sequence([
+        Animated.timing(tilt, { toValue: -10, duration: 110, useNativeDriver: true }),
+        Animated.timing(tilt, { toValue: 10, duration: 220, useNativeDriver: true }),
+        Animated.timing(tilt, { toValue: -6, duration: 150, useNativeDriver: true }),
+        Animated.timing(tilt, { toValue: 0, duration: 110, useNativeDriver: true }),
+      ]).start();
+    };
+    const wobbleInterval = setInterval(wobble, 3500);
+    wobble();
+
+    return () => { floatLoop.stop(); clearInterval(wobbleInterval); };
+  }, []);
+
+  const rotation = tilt.interpolate({ inputRange: [-10, 10], outputRange: ['-10deg', '10deg'] });
+
+  return (
+    <Animated.View style={{ transform: [{ translateY: float }, { rotate: rotation }] }}>
+      <Image source={GOOSE_IMAGE} style={styles.emptyGoose} />
+    </Animated.View>
+  );
+}
+
+function EmptyState() {
+  return (
+    <View style={styles.empty}>
+      <FloatingGoose />
+      <Text style={styles.emptyTitle}>No hunts yet</Text>
+      <Text style={styles.emptySubtitle}>
+        Tap <Text style={{ color: Colors.gold, fontWeight: '800' }}>New Hunt</Text> to build one,
+        or hit <Text style={{ color: Colors.purple, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
+      </Text>
+    </View>
+  );
+}
 
 const GOOSE_LOOSE_THEMES = [
   'Things that look like they have a face',
@@ -275,16 +329,6 @@ export default function HomeScreen() {
     );
   };
 
-  const EmptyState = () => (
-    <View style={styles.empty}>
-      <Text style={styles.emptyGoose}>🪿</Text>
-      <Text style={styles.emptyTitle}>No hunts yet</Text>
-      <Text style={styles.emptySubtitle}>
-        Tap <Text style={{ color: Colors.gold, fontWeight: '800' }}>New Hunt</Text> to build one,
-        or hit <Text style={{ color: Colors.purple, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
-      </Text>
-    </View>
-  );
 
   const Toolbar = () => (
     <View style={styles.toolbar}>
@@ -368,7 +412,7 @@ export default function HomeScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.gooseLooseEmoji}>🪿</Text>
+              <Image source={GOOSE_IMAGE} style={styles.gooseLooseEmoji} />
               <Text style={styles.gooseLooseText}>Goose Loose</Text>
             </>
           )}
@@ -523,7 +567,7 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 80 },
-  emptyGoose: { fontSize: 72, marginBottom: 16 },
+  emptyGoose: { width: 120, height: 120, borderRadius: 28, marginBottom: 20 },
   emptyTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 8 },
   emptySubtitle: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
 
@@ -551,7 +595,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.purpleLight,
     overflow: 'hidden',
   },
-  gooseLooseEmoji: { fontSize: 20 },
+  gooseLooseEmoji: { width: 26, height: 26, borderRadius: 7 },
   gooseLooseText: { fontSize: 14, fontWeight: '800', color: Colors.purple, flexShrink: 1 },
 
   fab: {

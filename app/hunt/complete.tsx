@@ -11,6 +11,8 @@ import {
   Easing,
   Dimensions,
 } from 'react-native';
+
+const GOOSE_IMAGE = require('@/assets/icon.png');
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -161,7 +163,7 @@ export default function HuntCompleteScreen() {
 
           {/* Hero */}
           <View style={styles.recapHero}>
-            <Text style={styles.recapGoose}>🪿</Text>
+            <Image source={GOOSE_IMAGE} style={styles.recapGoose} />
             <Text style={styles.recapComplete}>HUNT COMPLETE!</Text>
             <Text style={styles.recapTitle}>{hunt.title}</Text>
             <Text style={styles.recapLocation}>📍 {hunt.location}</Text>
@@ -229,7 +231,7 @@ export default function HuntCompleteScreen() {
           </Animated.View>
 
           <Animated.View style={{ transform: [{ scale: gooseScale }, { translateY: gooseBounce }], marginBottom: 16 }}>
-            <Text style={styles.goose}>🪿</Text>
+            <Image source={GOOSE_IMAGE} style={styles.goose} />
           </Animated.View>
 
           <Animated.View style={{ opacity: fadeIn, transform: [{ translateY: titleSlide }] }}>
@@ -353,7 +355,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  recapGoose: { fontSize: 72, marginBottom: 10 },
+  recapGoose: { width: 90, height: 90, borderRadius: 20, marginBottom: 10 },
   recapComplete: {
     fontSize: 22,
     fontWeight: '900',
@@ -460,7 +462,7 @@ const styles = StyleSheet.create({
   starBLText: { fontSize: 20 },
   starBR: { position: 'absolute', top: 152, right: '6%' },
   starBRText: { fontSize: 22 },
-  goose: { fontSize: 100 },
+  goose: { width: 130, height: 130, borderRadius: 30 },
   heroTitle: {
     fontSize: 28,
     fontWeight: '900',

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, Easing } from 'react-native';
+import { Animated, StyleSheet, Text, View, Easing, Image } from 'react-native';
 import Colors from '@/constants/Colors';
 
 interface Props {
@@ -15,6 +15,7 @@ export default function GooseSplash({ onFinished }: Props) {
   const squish = useRef(new Animated.Value(1)).current;
   const sway = useRef(new Animated.Value(0)).current;
   const glowPulse = useRef(new Animated.Value(0.3)).current;
+  const glowPulseOuter = useRef(new Animated.Value(0.3 * 0.45)).current;
   const honkScale = useRef(new Animated.Value(0)).current;
   const honkOpacity = useRef(new Animated.Value(0)).current;
   const coinSpin = useRef(new Animated.Value(0)).current;
@@ -65,8 +66,14 @@ export default function GooseSplash({ onFinished }: Props) {
     // Glow ring pulse
     const glowLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 0.75, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.22, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(glowPulse, { toValue: 0.75, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulseOuter, { toValue: 0.75 * 0.45, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowPulse, { toValue: 0.22, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(glowPulseOuter, { toValue: 0.22 * 0.45, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]),
       ])
     );
     glowLoop.start();
@@ -114,7 +121,7 @@ export default function GooseSplash({ onFinished }: Props) {
     <Animated.View style={[styles.container, { opacity: fadeOut }]}>
       {/* Pulsing glow ring */}
       <Animated.View style={[styles.glowRing, { opacity: glowPulse }]} />
-      <Animated.View style={[styles.glowRingOuter, { opacity: Animated.multiply(glowPulse, 0.45) as any }]} />
+      <Animated.View style={[styles.glowRingOuter, { opacity: glowPulseOuter }]} />
 
       {/* Spinning coin accents */}
       <Animated.Text style={[styles.coin, styles.coinTL, { transform: [{ rotate: coinRotate }] }]}>🪙</Animated.Text>
@@ -125,13 +132,12 @@ export default function GooseSplash({ onFinished }: Props) {
       {/* HONK! speech bubble */}
       <Animated.View style={[styles.honkBubble, { opacity: honkOpacity, transform: [{ scale: honkScale }] }]}>
         <Text style={styles.honkText}>HONK!</Text>
-        {/* bubble tail */}
         <View style={styles.honkTail} />
       </Animated.View>
 
       {/* Goose */}
       <Animated.View style={[styles.gooseWrap, { opacity: fadeIn, transform: gooseTransform }]}>
-        <Text style={styles.goose}>🪿</Text>
+        <Image source={require('@/assets/icon.png')} style={styles.goose} />
       </Animated.View>
 
       {/* Title */}
@@ -225,7 +231,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   goose: {
-    fontSize: 120,
+    width: 160,
+    height: 160,
+    borderRadius: 36,
   },
 
   title: {

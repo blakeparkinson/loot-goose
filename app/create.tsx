@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -261,7 +262,7 @@ export default function CreateScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.generateBtnIcon}>🪿</Text>
+              <Image source={require('@/assets/icon.png')} style={styles.generateBtnIcon} />
               <Text style={styles.generateBtnText}>Generate Hunt</Text>
             </>
           )}
@@ -347,6 +348,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', paddingVertical: 18, borderRadius: 16, gap: 10,
   },
   generateBtnDisabled: { opacity: 0.4 },
-  generateBtnIcon: { fontSize: 20 },
+  generateBtnIcon: { width: 26, height: 26, borderRadius: 7 },
   generateBtnText: { fontSize: 17, fontWeight: '800', color: '#000' },
 });
