@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       messages: [
         {
           role: 'system',
-          content: `You are Loot Goose, a fun AI that designs real-world scavenger hunts as geographically ordered routes. You have strong knowledge of real places, streets, transit lines, and neighborhoods. Always respond with valid JSON only.`,
+          content: `You are Loot Goose, a fun AI that designs real-world scavenger hunts as geographically ordered walking routes. You have strong knowledge of real places, streets, and neighborhoods. Always respond with valid JSON only.`,
         },
         {
           role: 'user',
@@ -205,48 +205,56 @@ Route & theme: ${prompt}
 Number of stops: ${count}
 Points range: ${minPts}-${maxPts} per stop${weatherLine}
 
-STEP 1 — IDENTIFY ROUTE STRUCTURE:
-Read the "Route & theme" carefully and classify it as one of:
-- ROUND-TRIP: User mentions going TO a specific destination AND returning/coming back (e.g. "starting at X going to Y and back", "find stops along the way and on the way back"). The destination is a real named place that acts as the MIDPOINT.
-- ONE-WAY: User describes a single direction or a loop with no named destination.
+STEP 1 — CLASSIFY:
+Determine if this is a ROUND-TRIP or ONE-WAY route.
+ROUND-TRIP signals: user mentions going TO a named destination AND coming back (e.g. "going to [place] and back", "find stops on the way and on the way back", "starting at X going to Y").
+ONE-WAY: single direction, no named turnaround.
 
-If ROUND-TRIP: Split the ${count} stops evenly — roughly half on the OUTBOUND leg (start → destination) and half on the RETURN leg (destination → start). The named destination itself should be the final outbound stop or the bridge between the two legs. Order ALL stops as: [outbound stop 1, outbound stop 2, ..., destination, return stop 1, return stop 2, ...]. Outbound stops must lie geographically between the start and destination. Return stops must lie geographically between the destination and the start, on a DIFFERENT PATH so players see new things.
+STEP 2 — IDENTIFY NAMED DESTINATION (round-trip only):
+Extract the specific named place the user is going TO (e.g. a restaurant, park, landmark). This becomes the destination.
+The starting location ("${location}") is the player's ORIGIN — it is NEVER one of the stops.
 
-If ONE-WAY: All stops follow the route in a single direction from start to finish.
+STEP 3 — GENERATE STOPS:
+For ONE-WAY: Generate exactly ${count} stops from start to finish. Return them in the "items" array.
 
-STEP 2 — EXTRACT DISTANCE CONSTRAINT:
-Check if the user stated a distance, travel time, or size. If they did, that is the MAX ROUTE DISTANCE (one-way for round-trips, total for one-way). If no distance was stated, use a default of 1.5 miles (2.4 km) one-way.
+For ROUND-TRIP: Use the SPLIT FORMAT below. Generate:
+- "outboundItems": ${Math.floor((count - 1) / 2)} stops between the starting location and the destination, in order of walking from origin toward destination
+- "destinationItem": exactly 1 stop AT the named destination
+- "returnItems": ${count - 1 - Math.floor((count - 1) / 2)} stops between the destination and the starting location, via a different path, in order of walking back toward origin
 
-STEP 3 — FIT EXACTLY ${count} STOPS:
-You MUST return EXACTLY ${count} stops — no more, no fewer. This is non-negotiable. Space them to fit within the distance. If stops must be close together, that is correct.
+RULES (apply to all stops):
+1. STOP COUNT: outboundItems + destinationItem + returnItems must total exactly ${count} for round-trip. items must total exactly ${count} for one-way.
+2. REAL PLACES ONLY: Every stop must be a real, verifiable place. Prefer parks, public landmarks, transit stations, well-known chain businesses. Do not invent local businesses.
+3. TRANSIT: If a transit line is mentioned, each stop must be within 2 blocks of that line.
+4. SUBLOCATION: Real name + address, e.g. "Columns Hotel, 3811 St. Charles Ave".
+5. GEOCODE: Specific enough for Google Maps — include name, street address, city/state.
 
-CRITICAL RULES:
+Return JSON in ONE of these two formats:
 
-1. STOP COUNT (HIGHEST PRIORITY): Always return EXACTLY ${count} items in the JSON array. Never skip stops — space them more densely instead.
-
-2. SEQUENTIAL ORDER: Items in the JSON array must be in the exact order a player walks them. For ONE-WAY routes: strictly start-to-finish. For ROUND-TRIP routes: outbound stops in order → destination → return stops in order. Never mix outbound and return stops. A player should never have to backtrack to an earlier stop.
-
-3. REAL PLACES ONLY — NO HALLUCINATION: Every stop must be a real, named, specific place you are HIGHLY CONFIDENT exists right now. Do not include a business unless you are certain it is real and currently operating. Prefer parks, trails, libraries, post offices, fire stations, schools, chain businesses, and well-known public landmarks over local businesses you cannot verify. If you struggle to find enough verified places, use public spaces, street corners, or landmark features rather than inventing businesses.
-
-4. TRANSIT AWARENESS: If a transit line is mentioned, each stop must be within a 2-block walk of that line. Name the nearest transit stop in the sublocation field.
-
-5. SUBLOCATION = REAL NAME: Use the actual name and address of the place — e.g. "Columns Hotel, 3811 St. Charles Ave" or "Audubon Park Shelter #3 near the lagoon". Not a description.
-
-6. GEOCODE PRECISION: geocodeQuery must be specific enough to find the exact place on Google Maps — include the establishment name, street number and name if known, neighborhood, and city/state.
-
-Return JSON in this exact format:
+For ONE-WAY:
 {
   "title": "A fun, punny hunt title",
-  "items": [
-    {
-      "name": "Short stop name (3-6 words)",
-      "description": "What to find or do at this specific real place and why it fits the theme (1-2 sentences)",
-      "hint": "A helpful but not too easy hint for finding the exact spot",
-      "points": <number between ${minPts} and ${maxPts}>,
-      "sublocation": "Real place name + address/cross-street, e.g. 'Columns Hotel Bar, 3811 St. Charles Ave, Uptown'",
-      "geocodeQuery": "Precise query, e.g. 'The Columns Hotel, 3811 St Charles Ave, New Orleans, LA'"
-    }
-  ]
+  "routeType": "ONE_WAY",
+  "items": [ <${count} stop objects in walking order> ]
+}
+
+For ROUND-TRIP:
+{
+  "title": "A fun, punny hunt title",
+  "routeType": "ROUND_TRIP",
+  "outboundItems": [ <${Math.floor((count - 1) / 2)} stops walking from origin toward destination> ],
+  "destinationItem": { <1 stop at the named destination> },
+  "returnItems": [ <${count - 1 - Math.floor((count - 1) / 2)} stops walking from destination back toward origin> ]
+}
+
+Each stop object:
+{
+  "name": "Short stop name (3-6 words)",
+  "description": "What to find or do here and why it fits the theme (1-2 sentences)",
+  "hint": "A helpful but not too easy hint for finding the exact spot",
+  "points": <number between ${minPts} and ${maxPts}>,
+  "sublocation": "Real place name + address/cross-street",
+  "geocodeQuery": "Precise query for Google Maps, e.g. 'Duane Park, Hudson St & Duane St, New York, NY'"
 }
 
 Give harder-to-find or more obscure spots more points; obvious or easy ones fewer.`,
@@ -257,11 +265,27 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
     const text = response.choices[0].message.content ?? '{}';
     const data = JSON.parse(text);
 
+    // Flatten round-trip split format (outboundItems + destinationItem + returnItems) into
+    // a single ordered items array. For one-way routes, data.items is used directly.
+    const isRoundTrip = data.routeType === 'ROUND_TRIP' &&
+      (Array.isArray(data.outboundItems) || data.destinationItem != null || Array.isArray(data.returnItems));
+
+    let rawItems: any[];
+    if (isRoundTrip) {
+      const outbound: any[] = Array.isArray(data.outboundItems) ? data.outboundItems : [];
+      const dest: any[] = data.destinationItem ? [data.destinationItem] : [];
+      const ret: any[] = Array.isArray(data.returnItems) ? data.returnItems : [];
+      rawItems = [...outbound, ...dest, ...ret];
+      console.log(`Round-trip: ${outbound.length} outbound + ${dest.length} dest + ${ret.length} return = ${rawItems.length} stops`);
+    } else {
+      rawItems = Array.isArray(data.items) ? data.items : [];
+    }
+
     // Geocode hunt origin first, then use it as a location hint for all stop geocoding
     const huntCoords = await geocode(location);
 
     const stopCoords = await Promise.all(
-      (data.items as any[]).map((item: any) =>
+      rawItems.map((item: any) =>
         geocode(item.geocodeQuery ?? item.sublocation ?? item.name, huntCoords ?? undefined)
       ),
     );
@@ -290,7 +314,7 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
 
     // Attach coords to each item, dropping any that failed to geocode.
     // A geocoding failure is a strong signal the place was hallucinated.
-    const itemsWithCoords = (data.items as any[])
+    const itemsWithCoords = rawItems
       .map((item: any, i: number) => ({ ...item, coords: filteredStopCoords[i] }))
       .filter((item) => {
         if (!item.coords) {
@@ -300,9 +324,11 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
         return true;
       });
 
-    // Use Google Directions API to get optimized walking order (falls back to nearest-neighbor + 2-opt)
+    // For round-trip routes, preserve the LLM's carefully constructed outbound→destination→return
+    // ordering rather than re-optimizing (OSRM doesn't understand round-trip legs).
+    // For one-way routes, use OSRM to optimize the walking order.
     const origin = huntCoords ?? (stopCoords.find(c => c !== null) as { lat: number; lon: number } | null);
-    const sortedItems = origin
+    const sortedItems = (!isRoundTrip && origin)
       ? await optimizeRouteOrder(itemsWithCoords, origin)
       : itemsWithCoords;
 
