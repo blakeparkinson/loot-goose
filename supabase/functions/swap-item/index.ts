@@ -46,7 +46,7 @@ Return JSON in this exact format:
 {
   "name": "Short stop name (3-6 words)",
   "description": "What to find at this real place and why it fits (1-2 sentences)",
-  "hint": "A helpful but not too easy hint",
+  "lore": "2-3 sentences of interesting history, trivia, or surprising facts about this place",
   "points": <number between ${minPts} and ${maxPts}>,
   "sublocation": "Real place name + address",
   "geocodeQuery": "Precise OSM query"

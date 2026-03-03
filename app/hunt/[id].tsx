@@ -70,6 +70,7 @@ export default function HuntScreen() {
   const [swappingId, setSwappingId] = useState<string | null>(null);
   const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
   const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
+  const [expandedLore, setExpandedLore] = useState<Set<string>>(new Set());
 
   // Stop prompt modal
   type PendingAction =
@@ -442,7 +443,32 @@ export default function HuntScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-              {!item.completed && (
+              {!item.completed && item.lore ? (
+                // New hunts: free expandable lore section
+                <TouchableOpacity
+                  style={styles.loreToggle}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setExpandedLore((prev) => {
+                      const next = new Set(prev);
+                      next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                      return next;
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <FontAwesome name="book" size={11} color={Colors.purple} />
+                  <Text style={styles.loreToggleText}>
+                    {expandedLore.has(item.id) ? 'Hide history' : 'Did you know?'}
+                  </Text>
+                  <FontAwesome
+                    name={expandedLore.has(item.id) ? 'chevron-up' : 'chevron-down'}
+                    size={10}
+                    color={Colors.purple}
+                  />
+                </TouchableOpacity>
+              ) : !item.completed && item.hint ? (
+                // Legacy hunts: locked hint with point penalty
                 item.hintRevealed ? (
                   <View style={styles.hintRow}>
                     <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} />
@@ -467,7 +493,7 @@ export default function HuntScreen() {
                     )}
                   </TouchableOpacity>
                 )
-              )}
+              ) : null}
               {item.completed && item.verificationNote ? (
                 <Text style={styles.verificationNote} numberOfLines={1}>
                   <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
@@ -496,6 +522,11 @@ export default function HuntScreen() {
             )}
           </View>
         </View>
+        {!item.completed && item.lore && expandedLore.has(item.id) && (
+          <View style={styles.loreBox}>
+            <Text style={styles.loreText}>{item.lore}</Text>
+          </View>
+        )}
         {!item.completed && !isNearby && (
           <TouchableOpacity
             style={styles.snapBar}
@@ -942,6 +973,19 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', borderWidth: 1, borderColor: `${Colors.gold}30`,
   },
   hintLockedText: { fontSize: 12, color: Colors.gold, fontWeight: '600' },
+
+  loreToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  loreToggleText: { fontSize: 12, color: Colors.purple, fontWeight: '600' },
+  loreBox: {
+    marginTop: 8, marginBottom: 2,
+    backgroundColor: `${Colors.purple}10`,
+    borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: `${Colors.purple}25`,
+  },
+  loreText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   verificationNote: { fontSize: 12, color: Colors.green },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },

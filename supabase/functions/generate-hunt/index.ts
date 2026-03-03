@@ -8,22 +8,46 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Photon (by Komoot) — free, no key, great at finding businesses in OSM.
-// When a hint is provided we pass a strict bbox (±0.75° ≈ 50 mi) AND a
-// post-result distance check so we never return results from the wrong state.
-const GEOCODE_MAX_KM = 80; // discard any result more than ~50 mi from hunt origin
-const BBOX_DEG = 0.75;     // ±0.75° lat/lon bounding box for search
+// Geocoding strategy: Google Maps first (most complete, handles businesses well),
+// then Photon (OSM, free, no key), then Nominatim (OSM fallback).
+// Distance guard: discard any result more than 10 km from hunt origin —
+// tight enough to catch wrong-city/wrong-borough errors, loose enough for longer routes.
+const GEOCODE_MAX_KM = 10;
+const BBOX_DEG = 0.15; // ±0.15° ≈ 10–11 mi tight bounding box for OSM geocoders
 
 async function geocode(
   query: string,
   hint?: { lat: number; lon: number },
 ): Promise<{ lat: number; lon: number } | null> {
-  // Try Photon first
+  // 1. Try Google Maps Geocoding (most accurate, handles businesses & sub-features)
+  if (GMAPS_KEY) {
+    try {
+      let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GMAPS_KEY}`;
+      if (hint) {
+        // Viewport bias: strongly prefer results near the hunt origin
+        const d = 0.12; // ~13 km bias radius
+        url += `&bounds=${hint.lat - d},${hint.lon - d}|${hint.lat + d},${hint.lon + d}`;
+      }
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const data = await res.json();
+      if (data.status === 'OK' && data.results?.length > 0) {
+        const { lat, lng: lon } = data.results[0].geometry.location;
+        if (hint && haversineKm({ lat, lon }, hint) > GEOCODE_MAX_KM) {
+          console.log('Google result too far from hint, discarding:', query);
+        } else {
+          return { lat, lon };
+        }
+      }
+    } catch (e) {
+      console.error('Google geocode error for:', query, e);
+    }
+  }
+
+  // 2. Photon (OSM) fallback
   try {
     let url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`;
     if (hint) {
       url += `&lat=${hint.lat}&lon=${hint.lon}`;
-      // Hard bbox so Photon only considers results inside this box
       const minLon = hint.lon - BBOX_DEG, maxLon = hint.lon + BBOX_DEG;
       const minLat = hint.lat - BBOX_DEG, maxLat = hint.lat + BBOX_DEG;
       url += `&bbox=${minLon},${minLat},${maxLon},${maxLat}`;
@@ -41,13 +65,13 @@ async function geocode(
   } catch (e) {
     console.error('Photon error for:', query, e);
   }
-  // Fallback to Nominatim — use viewbox+bounded to restrict to same area
+
+  // 3. Nominatim (OSM) last resort
   try {
     let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
     if (hint) {
       const minLon = hint.lon - BBOX_DEG, maxLon = hint.lon + BBOX_DEG;
       const minLat = hint.lat - BBOX_DEG, maxLat = hint.lat + BBOX_DEG;
-      // Nominatim viewbox: left,top,right,bottom (lon_min,lat_max,lon_max,lat_min)
       url += `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1`;
     }
     const res = await fetch(url, {
@@ -224,7 +248,7 @@ For ROUND-TRIP: Use the SPLIT FORMAT below. Generate:
 
 RULES (apply to all stops):
 1. STOP COUNT: outboundItems + destinationItem + returnItems must total exactly ${count} for round-trip. items must total exactly ${count} for one-way.
-2. REAL PLACES ONLY: Every stop must be a real, verifiable place. Prefer parks, public landmarks, transit stations, well-known chain businesses. Do not invent local businesses.
+2. REAL, MAPPABLE PLACES ONLY: Every stop must be a named place that exists as its own Google Maps entry — a building, park, café, museum, transit station, plaza, or well-known public landmark. Do NOT name sub-features of places (e.g. "rooftop garden," "lobby mural," "back alley"). Name the parent venue instead (e.g. "Rockefeller Center" not "Rockefeller Center Rooftop Gardens"). Do not invent local businesses you cannot verify.
 3. TRANSIT: If a transit line is mentioned, each stop must be within 2 blocks of that line.
 4. SUBLOCATION: Real name + address, e.g. "Columns Hotel, 3811 St. Charles Ave".
 5. GEOCODE: Specific enough for Google Maps — include name, street address, city/state.
@@ -251,7 +275,7 @@ Each stop object:
 {
   "name": "Short stop name (3-6 words)",
   "description": "What to find or do here and why it fits the theme (1-2 sentences)",
-  "hint": "A helpful but not too easy hint for finding the exact spot",
+  "lore": "2-3 sentences of interesting history, trivia, or surprising context about this specific place. Real stories, founding dates, famous connections, or quirky facts — not navigation tips.",
   "points": <number between ${minPts} and ${maxPts}>,
   "sublocation": "Real place name + address/cross-street",
   "geocodeQuery": "Precise query for Google Maps, e.g. 'Duane Park, Hudson St & Duane St, New York, NY'"
@@ -290,10 +314,29 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
       ),
     );
 
-    // Outlier filter: compute median centroid of all geocoded stops, then null out
-    // any stop whose coords are more than 2 km from that centroid.
-    // This catches AI stops placed in the wrong part of a city.
-    const validCoords = stopCoords.filter((c): c is { lat: number; lon: number } => c !== null);
+    // Outlier filter: two-pass guard against geocoder misses.
+    // Pass 1 — hard distance from hunt origin: any stop geocoded more than 5 km
+    //   from where the user is is almost certainly a geocoder error (wrong city/borough).
+    //   5 km = ~3 miles, generous enough for any reasonable walking hunt.
+    // Pass 2 — centroid spread: after removing obvious outliers, recompute the median
+    //   centroid of remaining stops and drop anything > 2 km from that center.
+    //   This catches subtler wrong-neighborhood geocodes.
+    const MAX_FROM_ORIGIN_KM = 5.0;
+    const MAX_FROM_CENTROID_KM = 2.0;
+
+    // Pass 1
+    const originFilteredCoords = stopCoords.map((coords) => {
+      if (!coords || !huntCoords) return coords;
+      const dist = haversineKm(coords, huntCoords);
+      if (dist > MAX_FROM_ORIGIN_KM) {
+        console.log(`Dropping stop ${dist.toFixed(1)} km from origin (geocoder error):`, coords);
+        return null;
+      }
+      return coords;
+    });
+
+    // Pass 2 — centroid of origin-filtered stops
+    const validCoords = originFilteredCoords.filter((c): c is { lat: number; lon: number } => c !== null);
     let centroid: { lat: number; lon: number } | null = null;
     if (validCoords.length >= 2) {
       const sortedLat = [...validCoords.map(c => c.lat)].sort((a, b) => a - b);
@@ -301,11 +344,10 @@ Give harder-to-find or more obscure spots more points; obvious or easy ones fewe
       const mid = Math.floor(sortedLat.length / 2);
       centroid = { lat: sortedLat[mid], lon: sortedLon[mid] };
     }
-    const MAX_STOP_SPREAD_KM = 2.0;
-    const filteredStopCoords = stopCoords.map((coords) => {
+    const filteredStopCoords = originFilteredCoords.map((coords) => {
       if (!coords || !centroid) return coords;
       const dist = haversineKm(coords, centroid);
-      if (dist > MAX_STOP_SPREAD_KM) {
+      if (dist > MAX_FROM_CENTROID_KM) {
         console.log(`Dropping outlier stop at ${coords.lat},${coords.lon} — ${dist.toFixed(1)} km from centroid`);
         return null;
       }

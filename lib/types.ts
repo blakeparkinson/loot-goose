@@ -10,6 +10,7 @@ export interface HuntItem {
   name: string;
   description: string;
   hint: string;
+  lore?: string;           // interesting history/trivia about the place (expandable, free)
   points: number;
   completed: boolean;
   photoUri?: string;
@@ -18,7 +19,7 @@ export interface HuntItem {
   sublocation?: string;    // e.g. "near the Bethesda Fountain"
   geocodeQuery?: string;   // precise query for Nominatim
   coords?: Coords;         // populated lazily on navigate tap
-  hintRevealed?: boolean;  // true once user pays the point penalty
+  hintRevealed?: boolean;  // true once user pays the point penalty (legacy, pre-lore)
 }
 
 export interface Hunt {
