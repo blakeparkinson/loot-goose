@@ -43,7 +43,7 @@ Points range: ${minPts}-${maxPts}${betweenLine}${avoidList}
 
 Rules:
 - Must be a REAL, NAMED, SPECIFIC place (actual business, landmark, or named feature — not a vague description).
-- sublocation should be the real name and address of the place.
+- sublocation = venue name · neighborhood only (no street address), e.g. "Duane Park · Tribeca".
 - geocodeQuery must be precise enough to find it on OpenStreetMap (name + street + city).
 
 Return JSON in this exact format:
@@ -52,7 +52,7 @@ Return JSON in this exact format:
   "description": "What to find at this real place and why it fits the theme (1-2 sentences)",
   "lore": "2-3 sentences of interesting history, trivia, or surprising facts about this place",
   "points": <number between ${minPts} and ${maxPts}>,
-  "sublocation": "Real place name + address, e.g. 'Columns Hotel, 3811 St. Charles Ave, Uptown'",
+  "sublocation": "Venue name · Neighborhood, e.g. 'Duane Park · Tribeca'",
   "geocodeQuery": "Precise query, e.g. 'The Columns Hotel, 3811 St Charles Ave, New Orleans, LA'"
 }`,
         },

@@ -277,7 +277,7 @@ Each stop object:
   "description": "What to find or do here and why it fits the theme (1-2 sentences)",
   "lore": "2-3 sentences of interesting history, trivia, or surprising context about this specific place. Real stories, founding dates, famous connections, or quirky facts — not navigation tips.",
   "points": <number between ${minPts} and ${maxPts}>,
-  "sublocation": "Real place name + address/cross-street",
+  "sublocation": "Venue name · Neighborhood only — NO street address, e.g. 'Duane Park · Tribeca' or 'The Columns Hotel · Uptown'",
   "geocodeQuery": "Precise query for Google Maps, e.g. 'Duane Park, Hudson St & Duane St, New York, NY'"
 }
 

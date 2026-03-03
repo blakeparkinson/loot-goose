@@ -89,7 +89,7 @@ Generate ${incompleteCount} replacement stops that address the feedback while ke
 Rules:
 - REAL PLACES ONLY: actual named businesses, landmarks, or features.
 - GEOGRAPHIC ORDER: stops should form a sensible walking route.
-- sublocation = real name + address.
+- sublocation = venue name · neighborhood only (no street address), e.g. "Duane Park · Tribeca".
 - geocodeQuery must be precise enough for OpenStreetMap.
 
 Return JSON:
@@ -100,7 +100,7 @@ Return JSON:
       "description": "What to find at this real place and why it fits (1-2 sentences)",
       "lore": "2-3 sentences of interesting history, trivia, or surprising facts about this place",
       "points": <number between ${minPts} and ${maxPts}>,
-      "sublocation": "Real place name + address",
+      "sublocation": "Venue name · Neighborhood, e.g. 'Duane Park · Tribeca'",
       "geocodeQuery": "Precise OSM query"
     }
   ]

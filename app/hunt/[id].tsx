@@ -14,7 +14,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Share,
-  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -93,8 +92,9 @@ export default function HuntScreen() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishModalVisible, setPublishModalVisible] = useState(false);
 
-  // Arrival detection
+  // Arrival detection + live distance
   const [nearbyItemId, setNearbyItemId] = useState<string | null>(null);
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const huntRef = useRef(hunt);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
   const notifiedArrivals = useRef<Set<string>>(new Set());
@@ -110,6 +110,7 @@ export default function HuntScreen() {
         { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 4000 },
         (loc) => {
           const user = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+          setUserCoords(user);
           const currentHunt = huntRef.current;
           if (!currentHunt) return;
           let found: string | null = null;
@@ -409,6 +410,14 @@ export default function HuntScreen() {
     const isRevealingHint = revealingHintId === item.id;
     const isNearby = nearbyItemId === item.id && !item.completed;
     const penalty = hintPenalty({ ...item, hintRevealed: true });
+
+    const distMiToItem = userCoords && item.coords && !item.completed
+      ? haversineMi(userCoords, item.coords)
+      : null;
+    const distLabel = distMiToItem === null ? null
+      : distMiToItem < 0.02 ? null  // covered by "nearby" banner
+      : distMiToItem < 0.1 ? `${Math.round(distMiToItem * 5280)} ft`
+      : `${distMiToItem.toFixed(1)} mi`;
     return (
       <View style={[styles.itemCard, item.completed && styles.itemCardDone, isNearby && styles.itemCardNearby]}>
         <View style={styles.itemCardRow}>
@@ -426,22 +435,17 @@ export default function HuntScreen() {
               </Text>
               <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
               {!item.completed && item.sublocation && (
-                <TouchableOpacity
-                  onPress={() => {
-                    const query = item.coords
-                      ? `${item.coords.latitude},${item.coords.longitude}`
-                      : encodeURIComponent(item.geocodeQuery || item.sublocation!);
-                    const url = Platform.OS === 'ios'
-                      ? `maps://?q=${query}`
-                      : `geo:0,0?q=${query}`;
-                    Linking.openURL(url);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.itemSublocation} numberOfLines={1}>
-                    <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.sublocRow}>
+                  <FontAwesome name="map-pin" size={11} color={Colors.textMuted} />
+                  <Text style={styles.itemSublocation} numberOfLines={1}>{item.sublocation}</Text>
+                  {distLabel && (
+                    <>
+                      <Text style={styles.sublocSep}>·</Text>
+                      <FontAwesome name="location-arrow" size={10} color={Colors.textMuted} />
+                      <Text style={styles.distLabel}>{distLabel}</Text>
+                    </>
+                  )}
+                </View>
               )}
               {!item.completed && item.lore ? (
                 // New hunts: free expandable lore section
@@ -960,7 +964,10 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
   itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
-  itemSublocation: { fontSize: 12, color: Colors.blue, marginBottom: 3 },
+  sublocRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3, flexWrap: 'wrap' },
+  itemSublocation: { fontSize: 12, color: Colors.textMuted, flexShrink: 1 },
+  sublocSep: { fontSize: 12, color: Colors.textMuted },
+  distLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
   itemHint: { fontSize: 12, color: Colors.gold, flex: 1 },
 
   hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 2 },
