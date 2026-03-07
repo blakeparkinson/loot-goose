@@ -47,6 +47,7 @@ export default function CoopScreen() {
   const [remoteHuntData, setRemoteHuntData] = useState<Hunt | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [effectivePlayerName, setEffectivePlayerName] = useState(playerName ?? randomPlayerName());
 
   const effectiveHunt: Hunt | null = localHunt ?? remoteHuntData;
 
@@ -80,11 +81,12 @@ export default function CoopScreen() {
     });
 
     joinCoopSession(code, playerName ?? randomPlayerName())
-      .then(({ huntData, completions: existing, players: existingPlayers }) => {
+      .then(({ huntData, completions: existing, players: existingPlayers, playerName: assignedName }) => {
         if (cancelled) return;
         setRemoteHuntData(huntData as Hunt);
         setCompletions(existing);
         setPlayers(existingPlayers);
+        setEffectivePlayerName(assignedName);
         setLoading(false);
         setConnectionStatus('live');
       })
@@ -189,10 +191,10 @@ export default function CoopScreen() {
                   huntId: huntId ?? '',
                   itemId: item.id,
                   coopCode: code,
-                  playerName: playerName ?? '',
+                  playerName: effectivePlayerName,
                   itemNameOverride: item.name,
                   itemDescOverride: item.description,
-                  itemHintOverride: item.hint,
+                  itemLoreOverride: item.lore ?? item.hint,
                   itemPoints: String(item.points),
                 },
               });
@@ -250,9 +252,9 @@ export default function CoopScreen() {
         {players.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.playerChips} contentContainerStyle={{ gap: 6 }}>
             {players.map((p, i) => (
-              <View key={i} style={[styles.playerChip, p.name === playerName && styles.playerChipSelf]}>
-                <Text style={[styles.playerChipText, p.name === playerName && styles.playerChipTextSelf]}>
-                  {p.name === playerName ? '🪿 ' : ''}{p.name}
+              <View key={i} style={[styles.playerChip, p.name === effectivePlayerName && styles.playerChipSelf]}>
+                <Text style={[styles.playerChipText, p.name === effectivePlayerName && styles.playerChipTextSelf]}>
+                  {p.name === effectivePlayerName ? '🪿 ' : ''}{p.name}
                 </Text>
               </View>
             ))}

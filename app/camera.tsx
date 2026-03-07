@@ -14,9 +14,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import * as FileSystem from 'expo-file-system';
 import Colors from '@/constants/Colors';
-import { useAppStore, hintPenalty } from '@/lib/store';
+import { useAppStore } from '@/lib/store';
 import { verifyPhoto, completeCoopItem } from '@/lib/api';
 
 export default function CameraScreen() {
@@ -27,7 +26,7 @@ export default function CameraScreen() {
     playerName: coopPlayerName,
     itemNameOverride,
     itemDescOverride,
-    itemHintOverride,
+    itemLoreOverride,
     itemPoints,
   } = useLocalSearchParams<{
     huntId: string;
@@ -36,7 +35,7 @@ export default function CameraScreen() {
     playerName?: string;
     itemNameOverride?: string;
     itemDescOverride?: string;
-    itemHintOverride?: string;
+    itemLoreOverride?: string;
     itemPoints?: string;
   }>();
   const isCoopMode = !!coopCode;
@@ -46,10 +45,6 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === huntId));
   const completeItem = useAppStore((s) => s.completeItem);
-  const revealHint = useAppStore((s) => s.revealHint);
-
-
-  const [isRevealingHint, setIsRevealingHint] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
@@ -61,10 +56,9 @@ export default function CameraScreen() {
           id: itemId,
           name: itemNameOverride,
           description: itemDescOverride ?? '',
-          hint: itemHintOverride ?? '',
+          lore: itemLoreOverride ?? '',
           points: Number(itemPoints ?? 0),
           completed: false,
-          hintRevealed: false as boolean | undefined,
         }
       : undefined
   );
@@ -94,30 +88,6 @@ export default function CameraScreen() {
       </View>
     );
   }
-
-  const handleRevealHint = () => {
-    if (!item) return;
-    const penalty = hintPenalty({ ...item, hintRevealed: true });
-    Alert.alert(
-      'Reveal Hint?',
-      `This will cost you ${penalty} pts at completion.`,
-      [
-        { text: 'Keep it locked', style: 'cancel' },
-        {
-          text: `Reveal (−${penalty}pts)`,
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setIsRevealingHint(true);
-            try {
-              await revealHint(huntId, itemId);
-            } finally {
-              setIsRevealingHint(false);
-            }
-          },
-        },
-      ],
-    );
-  };
 
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing || isVerifying) return;
@@ -203,31 +173,13 @@ export default function CameraScreen() {
     </View>
   );
 
-  // In co-op mode hints are hidden (no Zustand to persist penalty state)
-  const hintBar = isCoopMode ? null : item.hintRevealed ? (
-    <View style={styles.hintBar}>
-      <FontAwesome name="lightbulb-o" size={13} color={Colors.gold} />
-      <Text style={styles.hintText} numberOfLines={2}>{item.hint}</Text>
-      <View style={styles.hintPenaltyBadge}>
-        <Text style={styles.hintPenaltyText}>−{hintPenalty(item)}pts</Text>
-      </View>
+  const summaryText = item.lore ?? item.hint;
+  const summaryBar = summaryText ? (
+    <View style={styles.summaryBar}>
+      <FontAwesome name="book" size={13} color={Colors.gold} />
+      <Text style={styles.summaryText} numberOfLines={3}>{summaryText}</Text>
     </View>
-  ) : (
-    <TouchableOpacity
-      style={[styles.hintBar, styles.hintBarLocked]}
-      onPress={handleRevealHint}
-      disabled={isRevealingHint}
-      activeOpacity={0.7}
-    >
-      {isRevealingHint
-        ? <ActivityIndicator size="small" color={Colors.gold} />
-        : <FontAwesome name="lock" size={13} color={Colors.gold} />
-      }
-      <Text style={styles.hintText} numberOfLines={1}>
-        {isRevealingHint ? 'Revealing...' : `Tap to reveal hint · −${hintPenalty({ ...item, hintRevealed: true })}pts`}
-      </Text>
-    </TouchableOpacity>
-  );
+  ) : null;
 
   // After capture: show the frozen photo with overlays
   if (capturedUri) {
@@ -271,7 +223,7 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing="back">
         {topBar}
-        {hintBar}
+        {summaryBar}
 
         {/* Capture button */}
         <View style={styles.captureRow}>
@@ -316,7 +268,7 @@ const styles = StyleSheet.create({
   itemBadgeName: { fontSize: 16, fontWeight: '800', color: '#fff' },
   itemBadgePoints: { fontSize: 13, color: Colors.gold, fontWeight: '700' },
 
-  hintBar: {
+  summaryBar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
@@ -327,12 +279,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${Colors.gold}44`,
   },
-  hintText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
-  hintBarLocked: { opacity: 0.85 },
-  hintPenaltyBadge: {
-    backgroundColor: 'rgba(248,81,73,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  hintPenaltyText: { fontSize: 10, fontWeight: '700', color: '#f85149' },
+  summaryText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
 
   captureRow: {
     position: 'absolute',

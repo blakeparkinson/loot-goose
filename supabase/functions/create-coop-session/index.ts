@@ -12,6 +12,16 @@ const supabase = createClient(
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+function assignUniquePlayerName(existingPlayers: Array<{ name: string }>, requestedName: string): string {
+  const base = String(requestedName).trim() || 'Goose Player';
+  const existing = new Set(existingPlayers.map((player) => player.name.toLowerCase()));
+  if (!existing.has(base.toLowerCase())) return base;
+
+  let suffix = 2;
+  while (existing.has(`${base} #${suffix}`.toLowerCase())) suffix += 1;
+  return `${base} #${suffix}`;
+}
+
 function generateCode(): string {
   let code = '';
   for (let i = 0; i < 6; i++) {
@@ -33,7 +43,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const players = [{ name: String(playerName), joinedAt: new Date().toISOString() }];
+    const assignedName = assignUniquePlayerName([], String(playerName));
+    const players = [{ name: assignedName, joinedAt: new Date().toISOString() }];
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const code = generateCode();
@@ -42,7 +53,7 @@ Deno.serve(async (req) => {
         .insert({ code, hunt_data: huntData, players });
 
       if (!error) {
-        return new Response(JSON.stringify({ code }), {
+        return new Response(JSON.stringify({ code, playerName: assignedName }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }

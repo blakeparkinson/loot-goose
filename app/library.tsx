@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
-import { Hunt } from '@/lib/types';
+import { Hunt, HuntDifficulty } from '@/lib/types';
 import { LibraryHunt, browseHunts, loadLibraryHunt } from '@/lib/api';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -31,6 +31,8 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingCode, setLoadingCode] = useState<string | null>(null);
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | HuntDifficulty>('all');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   // Cache of loaded full hunts keyed by code
   const [huntCache, setHuntCache] = useState<Record<string, Hunt>>({});
   const [loadingExpandCode, setLoadingExpandCode] = useState<string | null>(null);
@@ -64,6 +66,21 @@ export default function LibraryScreen() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query]);
+
+  const availableTags = useMemo(
+    () => Array.from(new Set(results.flatMap((item) => item.tags ?? []))).slice(0, 8),
+    [results],
+  );
+
+  const displayedResults = useMemo(
+    () =>
+      results.filter((item) => {
+        if (difficultyFilter !== 'all' && item.difficulty !== difficultyFilter) return false;
+        if (tagFilter && !(item.tags ?? []).includes(tagFilter)) return false;
+        return true;
+      }),
+    [difficultyFilter, results, tagFilter],
+  );
 
   const handleToggleExpand = async (item: LibraryHunt) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -102,7 +119,6 @@ export default function LibraryScreen() {
           completed: false,
           photoUri: undefined,
           verificationNote: undefined,
-          hintRevealed: false,
         })),
       };
       await saveHunt(newHunt);
@@ -120,6 +136,8 @@ export default function LibraryScreen() {
     const isLoadingThis = loadingCode === item.code;
     const isLoadingExpand = loadingExpandCode === item.code;
     const cached = huntCache[item.code];
+    const isFeatured = item.plays >= 5;
+    const isFresh = Date.now() - new Date(item.createdAt).getTime() < 1000 * 60 * 60 * 24 * 10;
 
     return (
       <TouchableOpacity
@@ -130,15 +148,27 @@ export default function LibraryScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+          </View>
+          <View style={styles.cardHeaderRight}>
+            {isFeatured && (
+              <View style={styles.featureBadge}>
+                <Text style={styles.featureBadgeText}>Featured</Text>
+              </View>
+            )}
+            {isFresh && (
+              <View style={styles.freshBadge}>
+                <Text style={styles.freshBadgeText}>Fresh</Text>
+              </View>
+            )}
             <View style={[styles.diffBadge, { backgroundColor: `${diffColor}22` }]}>
               <Text style={[styles.diffText, { color: diffColor }]}>{item.difficulty}</Text>
             </View>
+            <FontAwesome
+              name={isExpanded ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={Colors.textMuted}
+            />
           </View>
-          <FontAwesome
-            name={isExpanded ? 'chevron-up' : 'chevron-down'}
-            size={12}
-            color={Colors.textMuted}
-          />
         </View>
 
         <Text style={styles.cardLocation} numberOfLines={1}>
@@ -149,10 +179,26 @@ export default function LibraryScreen() {
           <Text style={styles.metaText}>{item.itemCount} stops</Text>
           <Text style={styles.metaDot}>·</Text>
           <Text style={[styles.metaText, { color: Colors.gold }]}>{item.totalPoints} pts</Text>
+          {typeof item.routeDistanceMiles === 'number' && (
+            <>
+              <Text style={styles.metaDot}>·</Text>
+              <Text style={styles.metaText}>~{item.routeDistanceMiles.toFixed(1)} mi</Text>
+            </>
+          )}
           <Text style={styles.metaDot}>·</Text>
           <FontAwesome name="play-circle" size={11} color={Colors.textMuted} />
           <Text style={styles.metaText}> {item.plays} plays</Text>
         </View>
+
+        {!!item.tags?.length && (
+          <View style={styles.tagRow}>
+            {item.tags.slice(0, 4).map((tag) => (
+              <View key={tag} style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {isExpanded && (
           <View style={styles.expandedContent}>
@@ -224,13 +270,50 @@ export default function LibraryScreen() {
         {loading && <ActivityIndicator size="small" color={Colors.textMuted} />}
       </View>
 
-      {loading && results.length === 0 ? (
+      <View style={styles.filterBar}>
+        {(['all', 'easy', 'medium', 'hard'] as const).map((level) => (
+          <TouchableOpacity
+            key={level}
+            style={[styles.filterChip, difficultyFilter === level && styles.filterChipActive]}
+            onPress={() => setDifficultyFilter(level)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.filterChipText, difficultyFilter === level && styles.filterChipTextActive]}>
+              {level === 'all' ? 'All levels' : level}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {availableTags.length > 0 && (
+        <View style={styles.filterBar}>
+          <TouchableOpacity
+            style={[styles.filterChip, tagFilter === null && styles.filterChipActive]}
+            onPress={() => setTagFilter(null)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.filterChipText, tagFilter === null && styles.filterChipTextActive]}>Any vibe</Text>
+          </TouchableOpacity>
+          {availableTags.map((tag) => (
+            <TouchableOpacity
+              key={tag}
+              style={[styles.filterChip, tagFilter === tag && styles.filterChipActive]}
+              onPress={() => setTagFilter(tag)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterChipText, tagFilter === tag && styles.filterChipTextActive]}>{tag}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {loading && displayedResults.length === 0 ? (
         <View style={styles.loadingCenter}>
           <ActivityIndicator size="large" color={Colors.gold} />
         </View>
       ) : (
         <FlatList
-          data={results}
+          data={displayedResults}
           keyExtractor={(h) => h.id}
           renderItem={renderCard}
           contentContainerStyle={styles.list}
@@ -268,6 +351,27 @@ const styles = StyleSheet.create({
   },
 
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  filterBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: `${Colors.gold}16`,
+    borderColor: `${Colors.gold}50`,
+  },
+  filterChipText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  filterChipTextActive: { color: Colors.gold },
 
   list: { padding: 16, paddingBottom: 40, flexGrow: 1 },
 
@@ -288,14 +392,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, flex: 1 },
   diffBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
   diffText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  featureBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.purpleLight,
+  },
+  featureBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  freshBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.greenLight,
+  },
+  freshBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.green, textTransform: 'uppercase' },
   cardLocation: { fontSize: 13, color: Colors.textSecondary, marginBottom: 8 },
 
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
   metaDot: { fontSize: 12, color: Colors.textMuted },
+  tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 },
+  tagPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  tagPillText: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' },
 
   expandedContent: { marginTop: 12 },
   divider: { height: 1, backgroundColor: Colors.border, marginBottom: 12 },

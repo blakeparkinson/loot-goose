@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import { Coords } from './types';
+import { buildRouteExportPreview } from './huntInsights';
 
 export async function openNativeMaps(coords: Coords, label: string): Promise<void> {
   const { latitude, longitude } = coords;
@@ -52,7 +53,8 @@ export async function openRouteInMaps(
   origin: Coords | null,
   stops: Array<{ coords?: Coords; query?: string }>,
 ): Promise<void> {
-  const valid = stops.filter((s) => s.coords || s.query);
+  const preview = buildRouteExportPreview(origin, stops);
+  const valid = preview.routeStops;
   if (valid.length === 0) return;
 
   const toStr = (s: { coords?: Coords; query?: string }) =>
@@ -60,20 +62,9 @@ export async function openRouteInMaps(
       ? `${s.coords.latitude},${s.coords.longitude}`
       : encodeURIComponent(s.query!);
 
-  // Google Maps URL supports max 8 waypoints (10 total stops incl. origin + destination).
-  // Trim the middle if needed, keeping first and last stops as-is.
-  const MAX_WAYPOINTS = 8;
-  let routeStops = valid;
-  if (valid.length > MAX_WAYPOINTS + 1) {
-    const middle = valid.slice(1, -1);
-    const step = (middle.length - 1) / (MAX_WAYPOINTS - 1);
-    const kept = Array.from({ length: MAX_WAYPOINTS - 1 }, (_, i) => middle[Math.round(i * step)]);
-    routeStops = [valid[0], ...kept, valid[valid.length - 1]];
-  }
-
-  const destination = toStr(routeStops[routeStops.length - 1]);
+  const destination = toStr(valid[valid.length - 1]);
   // Use %7C (encoded pipe) as waypoint separator — required by Google Maps URL spec.
-  const waypoints = routeStops.slice(0, -1).map(toStr).join('%7C');
+  const waypoints = valid.slice(0, -1).map(toStr).join('%7C');
 
   let url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking';
   if (origin) url += `&origin=${origin.latitude},${origin.longitude}`;

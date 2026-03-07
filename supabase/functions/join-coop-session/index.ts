@@ -10,6 +10,16 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
+function assignUniquePlayerName(existingPlayers: Array<{ name: string }>, requestedName: string): string {
+  const base = String(requestedName).trim() || 'Goose Player';
+  const existing = new Set(existingPlayers.map((player) => player.name.toLowerCase()));
+  if (!existing.has(base.toLowerCase())) return base;
+
+  let suffix = 2;
+  while (existing.has(`${base} #${suffix}`.toLowerCase())) suffix += 1;
+  return `${base} #${suffix}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -48,9 +58,10 @@ Deno.serve(async (req) => {
 
     // Append player (skip if same name already present)
     const existingPlayers: { name: string; joinedAt: string }[] = session.players ?? [];
-    const alreadyIn = existingPlayers.some((p) => p.name === playerName);
+    const assignedName = assignUniquePlayerName(existingPlayers, String(playerName));
+    const alreadyIn = existingPlayers.some((p) => p.name === assignedName);
     if (!alreadyIn) {
-      const newPlayer = { name: String(playerName), joinedAt: new Date().toISOString() };
+      const newPlayer = { name: assignedName, joinedAt: new Date().toISOString() };
       await supabase
         .from('coop_sessions')
         .update({ players: [...existingPlayers, newPlayer] })
@@ -66,12 +77,13 @@ Deno.serve(async (req) => {
 
     const allPlayers = alreadyIn
       ? existingPlayers
-      : [...existingPlayers, { name: String(playerName), joinedAt: new Date().toISOString() }];
+      : [...existingPlayers, { name: assignedName, joinedAt: new Date().toISOString() }];
 
     return new Response(JSON.stringify({
       huntData: session.hunt_data,
       completions: completions ?? [],
       players: allPlayers,
+      playerName: assignedName,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

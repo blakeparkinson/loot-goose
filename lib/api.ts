@@ -1,4 +1,5 @@
 import { Hunt, HuntDifficulty, HuntItem } from './types';
+import { enrichHuntMetadata, estimateStopConfidence } from './huntInsights';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -38,6 +39,25 @@ async function callEdgeFunction(fnName: string, body: object, timeoutMs = 40000)
   }
 }
 
+function toClientItem(item: any, id: string): HuntItem {
+  const mapped: HuntItem = {
+    id,
+    name: item.name,
+    description: item.description,
+    hint: item.hint ?? '',
+    lore: item.lore,
+    points: item.points,
+    completed: false,
+    sublocation: item.sublocation,
+    geocodeQuery: item.geocodeQuery,
+    coords: item.coords
+      ? { latitude: item.coords.lat, longitude: item.coords.lon }
+      : undefined,
+  };
+  const confidence = estimateStopConfidence(mapped);
+  return { ...mapped, aiConfidence: confidence.level, confidenceNote: confidence.note };
+}
+
 export async function generateHunt(params: {
   location: string;
   prompt: string;
@@ -57,22 +77,9 @@ export async function generateHunt(params: {
     weather,
   });
 
-  const items: HuntItem[] = (data.items as any[]).map((item, i) => ({
-    id: `item-${Date.now()}-${i}`,
-    name: item.name,
-    description: item.description,
-    hint: item.hint ?? '',
-    lore: item.lore,
-    points: item.points,
-    completed: false,
-    sublocation: item.sublocation,
-    geocodeQuery: item.geocodeQuery,
-    coords: item.coords
-      ? { latitude: item.coords.lat, longitude: item.coords.lon }
-      : undefined,
-  }));
+  const items: HuntItem[] = (data.items as any[]).map((item, i) => toClientItem(item, `item-${Date.now()}-${i}`));
 
-  return {
+  return enrichHuntMetadata({
     id: `hunt-${Date.now()}`,
     title: data.title,
     location,
@@ -85,7 +92,7 @@ export async function generateHunt(params: {
     totalPoints: items.reduce((sum, i) => sum + i.points, 0),
     earnedPoints: 0,
     createdAt: new Date().toISOString(),
-  };
+  });
 }
 
 export async function verifyPhoto(params: {
@@ -113,17 +120,7 @@ export async function insertItem(params: {
     location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop, customPrompt,
   });
 
-  return {
-    id: `item-${Date.now()}-insert`,
-    name: data.name,
-    description: data.description,
-    hint: data.hint ?? '',
-    lore: data.lore,
-    points: data.points,
-    completed: false,
-    sublocation: data.sublocation,
-    geocodeQuery: data.geocodeQuery,
-  };
+  return toClientItem(data, `item-${Date.now()}-insert`);
 }
 
 export async function tuneHunt(params: {
@@ -131,7 +128,14 @@ export async function tuneHunt(params: {
   prompt: string;
   difficulty: HuntDifficulty;
   feedback: string;
-  currentStops: { name: string; sublocation?: string; completed: boolean }[];
+  currentStops: {
+    name: string;
+    sublocation?: string;
+    geocodeQuery?: string;
+    completed: boolean;
+    coords?: { latitude: number; longitude: number };
+    aiConfidence?: string;
+  }[];
   incompleteCount: number;
 }): Promise<HuntItem[]> {
   const { location, prompt, difficulty, feedback, currentStops, incompleteCount } = params;
@@ -141,20 +145,7 @@ export async function tuneHunt(params: {
     location, prompt, minPts, maxPts, feedback, currentStops, incompleteCount,
   });
 
-  return (data.items as any[]).map((item, i) => ({
-    id: `item-${Date.now()}-tune-${i}`,
-    name: item.name,
-    description: item.description,
-    hint: item.hint ?? '',
-    lore: item.lore,
-    points: item.points,
-    completed: false,
-    sublocation: item.sublocation,
-    geocodeQuery: item.geocodeQuery,
-    coords: item.coords
-      ? { latitude: item.coords.lat, longitude: item.coords.lon }
-      : undefined,
-  }));
+  return (data.items as any[]).map((item, i) => toClientItem(item, `item-${Date.now()}-tune-${i}`));
 }
 
 // --- Co-op ---
@@ -172,14 +163,19 @@ export interface CoopSessionInfo {
   huntData: Hunt;
   completions: CoopCompletion[];
   players: { name: string; joinedAt: string }[];
+  playerName: string;
 }
 
-export async function createCoopSession(huntData: Hunt, playerName: string): Promise<{ code: string }> {
+export async function createCoopSession(huntData: Hunt, playerName: string): Promise<{ code: string; playerName: string }> {
   return callEdgeFunction('create-coop-session', { huntData, playerName }, 15000);
 }
 
 export async function joinCoopSession(code: string, playerName: string): Promise<CoopSessionInfo> {
-  return callEdgeFunction('join-coop-session', { code, playerName }, 15000);
+  const data = await callEdgeFunction('join-coop-session', { code, playerName }, 15000);
+  return {
+    ...data,
+    huntData: enrichHuntMetadata(data.huntData),
+  };
 }
 
 export async function completeCoopItem(params: {
@@ -192,7 +188,7 @@ export async function completeCoopItem(params: {
 }
 
 export async function loadSharedHunt(code: string): Promise<Hunt> {
-  return callEdgeFunction('load-hunt', { code }, 15000);
+  return enrichHuntMetadata(await callEdgeFunction('load-hunt', { code }, 15000));
 }
 
 export async function swapItem(params: {
@@ -207,17 +203,7 @@ export async function swapItem(params: {
 
   const data = await callEdgeFunction('swap-item', { location, prompt, minPts, maxPts, existingItemNames, customPrompt });
 
-  return {
-    id: `item-${Date.now()}-swap`,
-    name: data.name,
-    description: data.description,
-    hint: data.hint ?? '',
-    lore: data.lore,
-    points: data.points,
-    completed: false,
-    sublocation: data.sublocation,
-    geocodeQuery: data.geocodeQuery,
-  };
+  return toClientItem(data, `item-${Date.now()}-swap`);
 }
 
 // --- Library ---
@@ -232,6 +218,8 @@ export interface LibraryHunt {
   itemCount: number;
   plays: number;
   createdAt: string;
+  tags: string[];
+  routeDistanceMiles?: number;
 }
 
 export async function publishHunt(hunt: Hunt): Promise<{ code: string }> {
@@ -250,9 +238,11 @@ export async function browseHunts(query: string): Promise<LibraryHunt[]> {
     itemCount: r.item_count,
     plays: r.plays,
     createdAt: r.created_at,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    routeDistanceMiles: typeof r.route_distance_miles === 'number' ? r.route_distance_miles : undefined,
   }));
 }
 
 export async function loadLibraryHunt(code: string): Promise<Hunt> {
-  return callEdgeFunction('load-library-hunt', { code }, 15000);
+  return enrichHuntMetadata(await callEdgeFunction('load-library-hunt', { code }, 15000));
 }

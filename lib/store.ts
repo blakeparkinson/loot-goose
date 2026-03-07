@@ -1,18 +1,12 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Hunt, HuntItem, Coords } from './types';
+import { enrichHuntMetadata } from './huntInsights';
 
 const HUNTS_KEY = 'lootgoose_hunts';
 
-// Points deducted when a hint is revealed (applied at completion time)
-export function hintPenalty(item: HuntItem): number {
-  return item.hintRevealed ? Math.max(5, Math.round(item.points * 0.25)) : 0;
-}
-
 function earnedPointsFor(items: HuntItem[]): number {
-  return items
-    .filter((i) => i.completed)
-    .reduce((sum, i) => sum + i.points - hintPenalty(i), 0);
+  return items.filter((i) => i.completed).reduce((sum, i) => sum + i.points, 0);
 }
 
 interface AppStore {
@@ -21,7 +15,6 @@ interface AppStore {
   saveHunt: (hunt: Hunt) => Promise<void>;
   deleteHunt: (huntId: string) => Promise<void>;
   completeItem: (huntId: string, itemId: string, photoUri: string, verificationNote: string) => Promise<void>;
-  revealHint: (huntId: string, itemId: string) => Promise<void>;
   updateItemCoords: (huntId: string, itemId: string, coords: Coords) => Promise<void>;
   replaceItem: (huntId: string, itemId: string, newItem: HuntItem) => Promise<void>;
   insertItemAfter: (huntId: string, afterItemId: string, newItem: HuntItem) => Promise<void>;
@@ -36,7 +29,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadHunts: async () => {
     try {
       const raw = await AsyncStorage.getItem(HUNTS_KEY);
-      if (raw) set({ hunts: JSON.parse(raw) });
+      if (raw) {
+        const hunts = (JSON.parse(raw) as Hunt[]).map((hunt) => enrichHuntMetadata(hunt));
+        set({ hunts });
+      }
     } catch (e) {
       console.error('Failed to load hunts:', e);
     }
@@ -44,10 +40,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   saveHunt: async (hunt: Hunt) => {
     const { hunts } = get();
-    const exists = hunts.some((h) => h.id === hunt.id);
+    const enriched = enrichHuntMetadata(hunt);
+    const exists = hunts.some((h) => h.id === enriched.id);
     const updated = exists
-      ? hunts.map((h) => (h.id === hunt.id ? hunt : h))
-      : [hunt, ...hunts];
+      ? hunts.map((h) => (h.id === enriched.id ? enriched : h))
+      : [enriched, ...hunts];
     set({ hunts: updated });
     try {
       await AsyncStorage.setItem(HUNTS_KEY, JSON.stringify(updated));
@@ -90,18 +87,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       earnedPoints: earnedPointsFor(updatedItems),
       startedAt: hunt.startedAt ?? (isFirst ? now : undefined),
       completedAt: allDone ? now : undefined,
-    });
-  },
-
-  revealHint: async (huntId, itemId) => {
-    const { hunts, saveHunt } = get();
-    const hunt = hunts.find((h) => h.id === huntId);
-    if (!hunt) return;
-    const item = hunt.items.find((i) => i.id === itemId);
-    if (!item || item.hintRevealed || item.completed) return;
-    await saveHunt({
-      ...hunt,
-      items: hunt.items.map((i) => (i.id === itemId ? { ...i, hintRevealed: true } : i)),
     });
   },
 

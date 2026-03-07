@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -54,7 +54,7 @@ export default function CreateScreen() {
   const saveHunt = useAppStore((s) => s.saveHunt);
 
   const [location, setLocation] = useState('');
-  const [isLocating, setIsLocating] = useState(true);
+  const [isLocating, setIsLocating] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<HuntDifficulty>('medium');
@@ -63,30 +63,31 @@ export default function CreateScreen() {
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
 
-  // Fetch GPS on mount: reverse geocode for location field + weather
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const { latitude, longitude } = loc.coords;
-
-        // Reverse geocode to get a human-readable location string
-        const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (geo) {
-          const parts = [geo.district || geo.street, geo.city, geo.region].filter(Boolean);
-          setLocation(parts.join(', '));
-        }
-
-        // Fetch weather in parallel (already have coords)
-        const info = await fetchWeather({ latitude, longitude });
-        setWeather(info);
-      } finally {
-        setIsLocating(false);
+  const handleUseCurrentLocation = async () => {
+    setIsLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location optional', 'You can still type a neighborhood or city manually.');
+        return;
       }
-    })();
-  }, []);
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = loc.coords;
+      const [geo, info] = await Promise.all([
+        Location.reverseGeocodeAsync({ latitude, longitude }).then((rows) => rows[0]),
+        fetchWeather({ latitude, longitude }),
+      ]);
+
+      if (geo) {
+        const parts = [geo.district || geo.street, geo.city, geo.region].filter(Boolean);
+        setLocation(parts.join(', '));
+      }
+      setWeather(info);
+    } finally {
+      setIsLocating(false);
+    }
+  };
 
   const canGenerate = location.trim().length > 2 && prompt.trim().length > 2;
 
@@ -159,10 +160,20 @@ export default function CreateScreen() {
               value={location}
               onChangeText={setLocation}
               returnKeyType="next"
-              editable={!isLocating}
+              editable={!isGenerating}
             />
             {isLocating && <ActivityIndicator style={styles.locationSpinner} size="small" color={Colors.textMuted} />}
           </View>
+          <TouchableOpacity
+            style={[styles.locateBtn, isLocating && { opacity: 0.7 }]}
+            onPress={handleUseCurrentLocation}
+            disabled={isLocating}
+            activeOpacity={0.8}
+          >
+            <FontAwesome name="location-arrow" size={13} color={Colors.blue} />
+            <Text style={styles.locateBtnText}>{isLocating ? 'Finding you...' : 'Use current location'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.locationNote}>Manual entry works too. GPS just helps with weather and nearby routing.</Text>
         </View>
 
         {/* Prompt */}
@@ -303,6 +314,21 @@ const styles = StyleSheet.create({
   locationInputRow: { position: 'relative' },
   locationInput: { paddingRight: 44 },
   locationSpinner: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  locateBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.blueLight,
+    borderWidth: 1,
+    borderColor: `${Colors.blue}35`,
+  },
+  locateBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
+  locationNote: { marginTop: 8, fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
 
   input: {
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,

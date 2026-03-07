@@ -1,16 +1,26 @@
 export type HuntDifficulty = 'easy' | 'medium' | 'hard';
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export interface Coords {
   latitude: number;
   longitude: number;
 }
 
+export interface RouteMetrics {
+  estimatedDistanceMiles?: number;
+  geocodedStopCount: number;
+  totalStops: number;
+  omittedFromMapExport: number;
+  lowConfidenceStops: number;
+  warnings: string[];
+}
+
 export interface HuntItem {
   id: string;
   name: string;
   description: string;
-  hint: string;
-  lore?: string;           // interesting history/trivia about the place (expandable, free)
+  hint?: string;           // legacy field; old hunts may still have this text
+  lore?: string;           // summary/history text shown in the UI
   points: number;
   completed: boolean;
   photoUri?: string;
@@ -19,7 +29,8 @@ export interface HuntItem {
   sublocation?: string;    // e.g. "near the Bethesda Fountain"
   geocodeQuery?: string;   // precise query for Nominatim
   coords?: Coords;         // populated lazily on navigate tap
-  hintRevealed?: boolean;  // true once user pays the point penalty (legacy, pre-lore)
+  aiConfidence?: ConfidenceLevel;
+  confidenceNote?: string;
 }
 
 export interface Hunt {
@@ -36,4 +47,6 @@ export interface Hunt {
   startedAt?: string;    // set on first item completion
   completedAt?: string;
   publishedCode?: string;  // set once published to library; re-publish shows existing code
+  tags?: string[];
+  routeMetrics?: RouteMetrics;
 }

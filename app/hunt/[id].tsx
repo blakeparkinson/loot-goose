@@ -10,6 +10,7 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Modal,
+  ScrollView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -19,13 +20,15 @@ import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
-import { useAppStore, hintPenalty } from '@/lib/store';
+import { useAppStore } from '@/lib/store';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import * as Location from 'expo-location';
 import { HuntItem, Coords } from '@/lib/types';
 import { geocodeQuery, distanceMiles } from '@/lib/geocoding';
 import { openNativeMapsDirections, openMapsSearch, openRouteInMaps } from '@/lib/navigation';
 import { swapItem, insertItem, tuneHunt, createCoopSession, publishHunt } from '@/lib/api';
+import { buildRouteExportPreview, calculateRouteMetrics } from '@/lib/huntInsights';
 import { randomPlayerName } from '@/app/hunt/coop/[code]';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -61,13 +64,11 @@ export default function HuntScreen() {
   const saveHunt = useAppStore((s) => s.saveHunt);
   const updateItemCoords = useAppStore((s) => s.updateItemCoords);
   const replaceItem = useAppStore((s) => s.replaceItem);
-  const revealHint = useAppStore((s) => s.revealHint);
   const insertItemAfter = useAppStore((s) => s.insertItemAfter);
   const deleteItem = useAppStore((s) => s.deleteItem);
   const replaceIncompleteItems = useAppStore((s) => s.replaceIncompleteItems);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [swappingId, setSwappingId] = useState<string | null>(null);
-  const [revealingHintId, setRevealingHintId] = useState<string | null>(null);
   const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
   const [expandedLore, setExpandedLore] = useState<Set<string>>(new Set());
 
@@ -91,6 +92,8 @@ export default function HuntScreen() {
   // Publish
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishModalVisible, setPublishModalVisible] = useState(false);
+  const [scoutModalVisible, setScoutModalVisible] = useState(false);
+  const [isScoutLoading, setIsScoutLoading] = useState(false);
 
   // Arrival detection + live distance
   const [nearbyItemId, setNearbyItemId] = useState<string | null>(null);
@@ -151,6 +154,20 @@ export default function HuntScreen() {
   const distLabel = distMi === null ? null
     : distMi < 0.1 ? `~${Math.round(distMi * 5280)} ft`
     : `~${distMi.toFixed(1)} mi`;
+  const routeMetrics = calculateRouteMetrics(hunt);
+  const routePreview = buildRouteExportPreview(
+    hunt.coords ?? null,
+    hunt.items.map((item) => ({ coords: item.coords, query: item.geocodeQuery ?? item.sublocation ?? item.name })),
+  );
+  const mappedStops = hunt.items.filter((item) => item.coords);
+  const mapRegion = mappedStops.length > 0
+    ? {
+        latitude: mappedStops.reduce((sum, item) => sum + item.coords!.latitude, 0) / mappedStops.length,
+        longitude: mappedStops.reduce((sum, item) => sum + item.coords!.longitude, 0) / mappedStops.length,
+        latitudeDelta: 0.06,
+        longitudeDelta: 0.06,
+      }
+    : undefined;
 
   const handleDelete = () => {
     Alert.alert('Delete Hunt', 'Are you sure?', [
@@ -183,29 +200,6 @@ export default function HuntScreen() {
     } finally {
       setNavigatingId(null);
     }
-  };
-
-  const handleRevealHint = (item: HuntItem) => {
-    const penalty = hintPenalty({ ...item, hintRevealed: true });
-    Alert.alert(
-      'Reveal Hint?',
-      `Revealing the hint costs you ${penalty} pts at completion. Worth it?`,
-      [
-        { text: 'Keep it locked', style: 'cancel' },
-        {
-          text: `Reveal (−${penalty}pts)`,
-          onPress: async () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setRevealingHintId(item.id);
-            try {
-              await revealHint(hunt!.id, item.id);
-            } finally {
-              setRevealingHintId(null);
-            }
-          },
-        },
-      ],
-    );
   };
 
   const handleDeleteItem = (item: HuntItem) => {
@@ -264,7 +258,14 @@ export default function HuntScreen() {
         prompt: hunt!.prompt,
         difficulty: hunt!.difficulty,
         feedback,
-        currentStops: hunt!.items.map((i) => ({ name: i.name, sublocation: i.sublocation, completed: i.completed })),
+        currentStops: hunt!.items.map((i) => ({
+          name: i.name,
+          sublocation: i.sublocation,
+          geocodeQuery: i.geocodeQuery,
+          completed: i.completed,
+          coords: i.coords,
+          aiConfidence: i.aiConfidence,
+        })),
         incompleteCount: incomplete.length,
       });
       await replaceIncompleteItems(hunt!.id, newItems);
@@ -281,11 +282,11 @@ export default function HuntScreen() {
     if (!name) return;
     setIsCreatingCoop(true);
     try {
-      const { code } = await createCoopSession(hunt!, name);
+      const { code, playerName } = await createCoopSession(hunt!, name);
       setCoopModalVisible(false);
       router.push({
         pathname: '/hunt/coop/[code]',
-        params: { code, playerName: name, huntId: hunt!.id },
+        params: { code, playerName, huntId: hunt!.id },
       });
     } catch (e: any) {
       Alert.alert('Co-op Failed', e.message ?? 'Could not start a co-op session.');
@@ -319,6 +320,38 @@ export default function HuntScreen() {
   const handleSwap = (item: HuntItem) => {
     setStopPrompt('');
     setPendingAction({ type: 'swap', item });
+  };
+
+  const handleExportRoute = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (routePreview.omittedCount > 0) {
+      Alert.alert(
+        'Route shortened for Maps',
+        `${routePreview.omittedCount} stop${routePreview.omittedCount === 1 ? '' : 's'} will be skipped because Google Maps limits waypoint count. Scout Mode shows the full route order.`,
+      );
+    }
+    await openRouteInMaps(
+      hunt.coords ?? null,
+      hunt.items.map((item) => ({ coords: item.coords, query: item.geocodeQuery ?? item.sublocation ?? item.name })),
+    );
+  };
+
+  const handleOpenScoutMode = async () => {
+    setScoutModalVisible(true);
+    const unresolved = hunt.items.filter((item) => !item.coords && item.geocodeQuery);
+    if (unresolved.length === 0) return;
+
+    setIsScoutLoading(true);
+    try {
+      await Promise.all(
+        unresolved.map(async (item) => {
+          const coords = await geocodeQuery(item.geocodeQuery!);
+          if (coords) await updateItemCoords(hunt.id, item.id, coords);
+        }),
+      );
+    } finally {
+      setIsScoutLoading(false);
+    }
   };
 
   const handleConfirmStopPrompt = async () => {
@@ -407,9 +440,8 @@ export default function HuntScreen() {
     const { item, index } = row;
     const isNavigating = navigatingId === item.id;
     const isSwapping = swappingId === item.id;
-    const isRevealingHint = revealingHintId === item.id;
     const isNearby = nearbyItemId === item.id && !item.completed;
-    const penalty = hintPenalty({ ...item, hintRevealed: true });
+    const summaryText = item.lore ?? item.hint;
 
     const distMiToItem = userCoords && item.coords && !item.completed
       ? haversineMi(userCoords, item.coords)
@@ -447,8 +479,7 @@ export default function HuntScreen() {
                   )}
                 </View>
               )}
-              {!item.completed && item.lore ? (
-                // New hunts: free expandable lore section
+              {!item.completed && summaryText ? (
                 <TouchableOpacity
                   style={styles.loreToggle}
                   onPress={() => {
@@ -463,7 +494,7 @@ export default function HuntScreen() {
                 >
                   <FontAwesome name="book" size={11} color={Colors.purple} />
                   <Text style={styles.loreToggleText}>
-                    {expandedLore.has(item.id) ? 'Hide history' : 'Did you know?'}
+                    {expandedLore.has(item.id) ? 'Hide summary' : 'View summary'}
                   </Text>
                   <FontAwesome
                     name={expandedLore.has(item.id) ? 'chevron-up' : 'chevron-down'}
@@ -471,32 +502,6 @@ export default function HuntScreen() {
                     color={Colors.purple}
                   />
                 </TouchableOpacity>
-              ) : !item.completed && item.hint ? (
-                // Legacy hunts: locked hint with point penalty
-                item.hintRevealed ? (
-                  <View style={styles.hintRow}>
-                    <FontAwesome name="lightbulb-o" size={11} color={Colors.gold} />
-                    <Text style={styles.itemHint} numberOfLines={2}>{item.hint}</Text>
-                    <View style={styles.hintPenaltyBadge}>
-                      <Text style={styles.hintPenaltyText}>−{penalty}pts</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.hintLocked}
-                    onPress={() => handleRevealHint(item)}
-                    disabled={isRevealingHint}
-                  >
-                    {isRevealingHint ? (
-                      <ActivityIndicator size="small" color={Colors.gold} />
-                    ) : (
-                      <>
-                        <FontAwesome name="lock" size={11} color={Colors.gold} />
-                        <Text style={styles.hintLockedText}>Reveal hint · −{penalty}pts</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )
               ) : null}
               {item.completed && item.verificationNote ? (
                 <Text style={styles.verificationNote} numberOfLines={1}>
@@ -507,7 +512,7 @@ export default function HuntScreen() {
           </View>
           <View style={styles.itemRight}>
             <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
-              {item.completed ? item.points - hintPenalty(item) : item.points}pts
+              {item.points}pts
             </Text>
             {item.completed && item.photoUri && (
               <Image source={{ uri: item.photoUri }} style={styles.itemThumb} />
@@ -526,9 +531,9 @@ export default function HuntScreen() {
             )}
           </View>
         </View>
-        {!item.completed && item.lore && expandedLore.has(item.id) && (
+        {!item.completed && summaryText && expandedLore.has(item.id) && (
           <View style={styles.loreBox}>
-            <Text style={styles.loreText}>{item.lore}</Text>
+            <Text style={styles.loreText}>{summaryText}</Text>
           </View>
         )}
         {!item.completed && !isNearby && (
@@ -606,7 +611,14 @@ export default function HuntScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Tune + Co-op + Route buttons */}
+        {routeMetrics.warnings.length > 0 && (
+          <View style={styles.warningBox}>
+            <FontAwesome name="exclamation-circle" size={12} color={Colors.gold} />
+            <Text style={styles.warningText} numberOfLines={2}>{routeMetrics.warnings[0]}</Text>
+          </View>
+        )}
+
+        {/* Tune + Scout + Co-op + Route buttons */}
         <View style={styles.headerBtns}>
           <TouchableOpacity
             style={styles.tuneBtn}
@@ -623,6 +635,20 @@ export default function HuntScreen() {
               <>
                 <FontAwesome name="magic" size={14} color={Colors.purple} />
                 <Text style={styles.tuneBtnText}>Tune</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.previewBtn}
+            onPress={handleOpenScoutMode}
+            disabled={isScoutLoading}
+          >
+            {isScoutLoading ? (
+              <ActivityIndicator size="small" color={Colors.blue} />
+            ) : (
+              <>
+                <FontAwesome name="compass" size={13} color={Colors.blue} />
+                <Text style={styles.previewBtnText}>Scout</Text>
               </>
             )}
           </TouchableOpacity>
@@ -646,13 +672,7 @@ export default function HuntScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.routeBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              openRouteInMaps(
-                hunt.coords ?? null,
-                hunt.items.map((i) => ({ coords: i.coords, query: i.geocodeQuery ?? i.sublocation ?? i.name })),
-              );
-            }}
+            onPress={handleExportRoute}
           >
             <FontAwesome name="map" size={13} color={Colors.blue} />
             <Text style={styles.routeBtnText}>Route</Text>
@@ -792,6 +812,109 @@ export default function HuntScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal
+        visible={scoutModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setScoutModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, styles.scoutCard]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Scout Mode</Text>
+              <Text style={styles.modalSubtitle}>
+                Preview the route shape, spot risky stops, and see what Maps will actually export before you head out.
+              </Text>
+
+              <View style={styles.scoutStatsRow}>
+                <View style={styles.scoutStat}>
+                  <Text style={styles.scoutStatValue}>{routeMetrics.geocodedStopCount}/{routeMetrics.totalStops}</Text>
+                  <Text style={styles.scoutStatLabel}>Mapped</Text>
+                </View>
+                <View style={styles.scoutStat}>
+                  <Text style={styles.scoutStatValue}>
+                    {typeof routeMetrics.estimatedDistanceMiles === 'number' ? routeMetrics.estimatedDistanceMiles.toFixed(1) : '--'}
+                  </Text>
+                  <Text style={styles.scoutStatLabel}>Miles</Text>
+                </View>
+                <View style={styles.scoutStat}>
+                  <Text style={styles.scoutStatValue}>{routePreview.routeStops.length}</Text>
+                  <Text style={styles.scoutStatLabel}>Map Stops</Text>
+                </View>
+              </View>
+
+              {mapRegion ? (
+                <MapView style={styles.scoutMap} initialRegion={mapRegion}>
+                  {mappedStops.map((item, index) => (
+                    <Marker
+                      key={item.id}
+                      coordinate={item.coords!}
+                      title={`${index + 1}. ${item.name}`}
+                      description={item.sublocation}
+                    />
+                  ))}
+                  {mappedStops.length >= 2 && (
+                    <Polyline
+                      coordinates={mappedStops.map((item) => item.coords!)}
+                      strokeColor={Colors.blue}
+                      strokeWidth={3}
+                    />
+                  )}
+                </MapView>
+              ) : (
+                <View style={styles.scoutMapEmpty}>
+                  <Text style={styles.scoutMapEmptyText}>Still geocoding this hunt. Try route preview again in a moment.</Text>
+                </View>
+              )}
+
+              {routeMetrics.warnings.length > 0 && (
+                <View style={styles.scoutSection}>
+                  <Text style={styles.scoutSectionTitle}>Sanity Check</Text>
+                  {routeMetrics.warnings.map((warning) => (
+                    <View key={warning} style={styles.scoutWarningRow}>
+                      <FontAwesome name="warning" size={11} color={Colors.gold} />
+                      <Text style={styles.scoutWarningText}>{warning}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.scoutSection}>
+                <Text style={styles.scoutSectionTitle}>Stop Confidence</Text>
+                {hunt.items.filter((item) => !item.completed).slice(0, 5).map((item) => (
+                  <View key={item.id} style={styles.confidenceRow}>
+                    <View style={[
+                      styles.confidenceBadge,
+                      item.aiConfidence === 'high'
+                        ? styles.confidenceHigh
+                        : item.aiConfidence === 'medium'
+                          ? styles.confidenceMedium
+                          : styles.confidenceLow,
+                    ]}>
+                      <Text style={styles.confidenceBadgeText}>{item.aiConfidence ?? 'low'}</Text>
+                    </View>
+                    <View style={styles.confidenceTextCol}>
+                      <Text style={styles.confidenceName}>{item.name}</Text>
+                      <Text style={styles.confidenceNote}>{item.confidenceNote ?? 'Needs a clearer venue or map query.'}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setScoutModalVisible(false)}>
+                  <Text style={styles.modalCancelText}>Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleExportRoute}>
+                  <FontAwesome name="map" size={13} color="#000" />
+                  <Text style={styles.modalConfirmText}>Open in Maps</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Stop prompt modal */}
       <Modal
         visible={!!pendingAction}
@@ -914,22 +1037,41 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginBottom: 12,
   },
   completedBannerText: { color: Colors.green, fontWeight: '700', fontSize: 14 },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: `${Colors.gold}12`,
+    borderWidth: 1,
+    borderColor: `${Colors.gold}30`,
+  },
+  warningText: { flex: 1, color: Colors.textSecondary, fontSize: 12, lineHeight: 18 },
 
-  headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   tuneBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: `${Colors.purple}30`,
   },
   tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
+  previewBtn: {
+    flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.blue}30`,
+  },
+  previewBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
   coopBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: `${Colors.purple}30`,
   },
   coopBtnText: { fontSize: 13, fontWeight: '700', color: Colors.purple },
   routeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: `${Colors.blue}30`,
   },
@@ -968,18 +1110,6 @@ const styles = StyleSheet.create({
   itemSublocation: { fontSize: 12, color: Colors.textMuted, flexShrink: 1 },
   sublocSep: { fontSize: 12, color: Colors.textMuted },
   distLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
-  itemHint: { fontSize: 12, color: Colors.gold, flex: 1 },
-
-  hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 2 },
-  hintPenaltyBadge: { backgroundColor: `${Colors.red}22`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  hintPenaltyText: { fontSize: 10, fontWeight: '700', color: Colors.red },
-
-  hintLocked: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2,
-    backgroundColor: `${Colors.gold}15`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-    alignSelf: 'flex-start', borderWidth: 1, borderColor: `${Colors.gold}30`,
-  },
-  hintLockedText: { fontSize: 12, color: Colors.gold, fontWeight: '600' },
 
   loreToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4,
@@ -1017,6 +1147,64 @@ const styles = StyleSheet.create({
     padding: 24, paddingBottom: 36,
     borderTopWidth: 1, borderColor: Colors.border,
   },
+  scoutCard: { maxHeight: '88%' },
+  scoutStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  scoutStat: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  scoutStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  scoutStatLabel: { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 4 },
+  scoutMap: { height: 220, borderRadius: 16, marginBottom: 16 },
+  scoutMapEmpty: {
+    height: 160,
+    borderRadius: 16,
+    marginBottom: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  scoutMapEmptyText: { color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  scoutSection: { marginBottom: 16 },
+  scoutSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  scoutWarningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+  scoutWarningText: { flex: 1, color: Colors.textSecondary, lineHeight: 18, fontSize: 12 },
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  confidenceBadge: {
+    minWidth: 62,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  confidenceHigh: { backgroundColor: Colors.greenLight },
+  confidenceMedium: { backgroundColor: Colors.goldLight },
+  confidenceLow: { backgroundColor: Colors.redLight },
+  confidenceBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.text, textTransform: 'uppercase' },
+  confidenceTextCol: { flex: 1 },
+  confidenceName: { color: Colors.text, fontWeight: '700', marginBottom: 3 },
+  confidenceNote: { color: Colors.textSecondary, fontSize: 12, lineHeight: 18 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
   modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
   modalInput: {

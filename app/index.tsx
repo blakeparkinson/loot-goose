@@ -220,13 +220,13 @@ export default function HomeScreen() {
     try {
       // Try co-op session first
       try {
-        await joinCoopSession(code, name);
+        const session = await joinCoopSession(code, name);
         setJoinModalVisible(false);
         setJoinCode('');
         setJoinPlayerName('');
         router.push({
           pathname: '/hunt/coop/[code]',
-          params: { code, playerName: name, huntId: '' },
+          params: { code, playerName: session.playerName, huntId: '' },
         });
         return;
       } catch (coopErr: any) {
@@ -250,7 +250,6 @@ export default function HomeScreen() {
           completed: false,
           photoUri: undefined,
           verificationNote: undefined,
-          hintRevealed: false,
         })),
       };
       await saveHunt(newHunt);
