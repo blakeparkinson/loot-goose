@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,12 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import Colors from '@/constants/Colors';
-import { HuntDifficulty } from '@/lib/types';
+import { HuntDifficulty, QuickPreset } from '@/lib/types';
 import { generateHunt } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { fetchWeather, WeatherInfo } from '@/lib/weather';
@@ -49,8 +49,53 @@ const LOADING_MESSAGES = [
 const MIN_STOPS = 3;
 const MAX_STOPS = 25;
 
+const QUICK_PRESETS: QuickPreset[] = [
+  {
+    title: '20-Minute Wander',
+    subtitle: 'Tight route, easy pace, good for a quick break.',
+    prompt: 'Find small neighborhood details worth noticing on a short walk',
+    difficulty: 'easy',
+    stopCount: 4,
+    suggestions: ['Hidden gems only locals know', 'Nature you can touch'],
+  },
+  {
+    title: 'Date Night',
+    subtitle: 'Cute stops, conversation starters, low chaos.',
+    prompt: 'Find charming, flirty, memorable places for a fun date-night stroll',
+    difficulty: 'medium',
+    stopCount: 5,
+    suggestions: ['Street art and murals', 'Things that are surprisingly old'],
+  },
+  {
+    title: 'Neighborhood Chaos',
+    subtitle: 'Weird signs, odd details, and good goose energy.',
+    prompt: 'Find weird signs, funny details, and evidence that humans are deeply strange',
+    difficulty: 'medium',
+    stopCount: 6,
+    suggestions: ['Weird or funny signs', 'Things starting with the letter B'],
+  },
+  {
+    title: 'Coffee Crawl',
+    subtitle: 'Good for solo walks or caffeinated side quests.',
+    prompt: 'Build a walk that mixes coffee spots, cozy corners, and local character',
+    difficulty: 'easy',
+    stopCount: 5,
+    suggestions: ['Dog-friendly things', 'Hidden gems only locals know'],
+  },
+];
+
 export default function CreateScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    presetTitle?: string;
+    presetPrompt?: string;
+    presetDifficulty?: HuntDifficulty;
+    presetStopCount?: string;
+    presetSuggestions?: string;
+    presetLocation?: string;
+    presetSubtitle?: string;
+    challengeBadge?: string;
+  }>();
   const saveHunt = useAppStore((s) => s.saveHunt);
 
   const [location, setLocation] = useState('');
@@ -62,6 +107,40 @@ export default function CreateScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
+  const [activePresetTitle, setActivePresetTitle] = useState<string | null>(null);
+
+  const routePreset = useMemo<QuickPreset | null>(() => {
+    if (!params.presetPrompt) return null;
+    return {
+      title: params.presetTitle ?? 'Quick Start',
+      subtitle: params.presetSubtitle,
+      prompt: params.presetPrompt,
+      difficulty: params.presetDifficulty ?? 'medium',
+      stopCount: Number(params.presetStopCount ?? 6),
+      suggestions: params.presetSuggestions ? params.presetSuggestions.split('|').filter(Boolean) : [],
+      location: params.presetLocation,
+    };
+  }, [
+    params.presetDifficulty,
+    params.presetLocation,
+    params.presetPrompt,
+    params.presetStopCount,
+    params.presetSubtitle,
+    params.presetSuggestions,
+    params.presetTitle,
+  ]);
+
+  useEffect(() => {
+    if (!routePreset) return;
+    setPrompt(routePreset.prompt);
+    setDifficulty(routePreset.difficulty);
+    setStopCount(Math.min(MAX_STOPS, Math.max(MIN_STOPS, routePreset.stopCount)));
+    setSelectedSuggestions(routePreset.suggestions ?? []);
+    setActivePresetTitle(routePreset.title);
+    if (routePreset.location) {
+      setLocation((current) => current.trim() || routePreset.location || '');
+    }
+  }, [routePreset]);
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);
@@ -94,6 +173,18 @@ export default function CreateScreen() {
   const adjustStops = (delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStopCount((prev) => Math.min(MAX_STOPS, Math.max(MIN_STOPS, prev + delta)));
+  };
+
+  const applyPreset = (preset: QuickPreset) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPrompt(preset.prompt);
+    setDifficulty(preset.difficulty);
+    setStopCount(Math.min(MAX_STOPS, Math.max(MIN_STOPS, preset.stopCount)));
+    setSelectedSuggestions(preset.suggestions ?? []);
+    setActivePresetTitle(preset.title);
+    if (preset.location) {
+      setLocation((current) => current.trim() || preset.location || '');
+    }
   };
 
   const handleGenerate = async () => {
@@ -177,6 +268,38 @@ export default function CreateScreen() {
         </View>
 
         {/* Prompt */}
+        <View style={styles.section}>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Quick Presets</Text>
+            {params.challengeBadge && (
+              <View style={styles.challengeBadge}>
+                <Text style={styles.challengeBadgeText}>{params.challengeBadge}</Text>
+              </View>
+            )}
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+            {(routePreset ? [routePreset, ...QUICK_PRESETS.filter((preset) => preset.title !== routePreset.title)] : QUICK_PRESETS).map((preset) => {
+              const isActive = activePresetTitle === preset.title;
+              return (
+                <TouchableOpacity
+                  key={preset.title}
+                  style={[styles.presetCard, isActive && styles.presetCardActive]}
+                  onPress={() => applyPreset(preset)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.presetTitle, isActive && styles.presetTitleActive]}>{preset.title}</Text>
+                  <Text style={styles.presetSubtitle} numberOfLines={2}>{preset.subtitle}</Text>
+                  <View style={styles.presetMetaRow}>
+                    <Text style={styles.presetMeta}>{preset.stopCount} stops</Text>
+                    <Text style={styles.presetMeta}>·</Text>
+                    <Text style={styles.presetMeta}>{preset.difficulty}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.label}>What's the theme?</Text>
           <TextInput
@@ -336,6 +459,33 @@ const styles = StyleSheet.create({
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
 
+  presetRow: { gap: 10, paddingRight: 4 },
+  presetCard: {
+    width: 180,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  presetCardActive: {
+    borderColor: Colors.gold,
+    backgroundColor: `${Colors.gold}10`,
+  },
+  presetTitle: { fontSize: 14, fontWeight: '800', color: Colors.text, marginBottom: 6 },
+  presetTitleActive: { color: Colors.gold },
+  presetSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 10 },
+  presetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  presetMeta: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'capitalize' },
+  challengeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.purpleLight,
+    borderWidth: 1,
+    borderColor: `${Colors.purple}35`,
+  },
+  challengeBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
   suggestions: { gap: 8, paddingTop: 10, paddingRight: 4 },
   suggestion: {
     backgroundColor: Colors.surface, borderRadius: 20,

@@ -94,6 +94,8 @@ export default function HuntScreen() {
   const [publishModalVisible, setPublishModalVisible] = useState(false);
   const [scoutModalVisible, setScoutModalVisible] = useState(false);
   const [isScoutLoading, setIsScoutLoading] = useState(false);
+  const [isScoutTightening, setIsScoutTightening] = useState(false);
+  const [scoutRerollingId, setScoutRerollingId] = useState<string | null>(null);
 
   // Arrival detection + live distance
   const [nearbyItemId, setNearbyItemId] = useState<string | null>(null);
@@ -351,6 +353,63 @@ export default function HuntScreen() {
       );
     } finally {
       setIsScoutLoading(false);
+    }
+  };
+
+  const moveItem = async (itemId: string, direction: -1 | 1) => {
+    const index = hunt.items.findIndex((item) => item.id === itemId);
+    const swapIndex = index + direction;
+    if (index < 0 || swapIndex < 0 || swapIndex >= hunt.items.length) return;
+    const nextItems = [...hunt.items];
+    [nextItems[index], nextItems[swapIndex]] = [nextItems[swapIndex], nextItems[index]];
+    await saveHunt({
+      ...hunt,
+      items: nextItems,
+      routeMetrics: hunt.routeMetrics,
+    });
+  };
+
+  const handleScoutReroll = async (item: HuntItem) => {
+    setScoutRerollingId(item.id);
+    try {
+      const newItem = await swapItem({
+        location: hunt.location,
+        prompt: hunt.prompt,
+        difficulty: hunt.difficulty,
+        existingItemNames: hunt.items.filter((candidate) => candidate.id !== item.id).map((candidate) => candidate.name),
+      });
+      await replaceItem(hunt.id, item.id, newItem);
+    } catch (e: any) {
+      Alert.alert('Reroll failed', e.message ?? 'Could not reroll that stop.');
+    } finally {
+      setScoutRerollingId(null);
+    }
+  };
+
+  const handleTightenRoute = async () => {
+    setIsScoutTightening(true);
+    try {
+      const incomplete = hunt.items.filter((item) => !item.completed);
+      const newItems = await tuneHunt({
+        location: hunt.location,
+        prompt: hunt.prompt,
+        difficulty: hunt.difficulty,
+        feedback: 'Keep the remaining stops tighter together, reduce duplicate-feeling stops, and favor the cleanest walking route possible.',
+        currentStops: hunt.items.map((item) => ({
+          name: item.name,
+          sublocation: item.sublocation,
+          geocodeQuery: item.geocodeQuery,
+          completed: item.completed,
+          coords: item.coords,
+          aiConfidence: item.aiConfidence,
+        })),
+        incompleteCount: incomplete.length,
+      });
+      await replaceIncompleteItems(hunt.id, newItems);
+    } catch (e: any) {
+      Alert.alert('Tighten route failed', e.message ?? 'Could not tighten this route right now.');
+    } finally {
+      setIsScoutTightening(false);
     }
   };
 
@@ -896,6 +955,38 @@ export default function HuntScreen() {
                     <View style={styles.confidenceTextCol}>
                       <Text style={styles.confidenceName}>{item.name}</Text>
                       <Text style={styles.confidenceNote}>{item.confidenceNote ?? 'Needs a clearer venue or map query.'}</Text>
+                      <View style={styles.scoutActionsRow}>
+                        <TouchableOpacity
+                          style={styles.scoutMiniBtn}
+                          onPress={() => moveItem(item.id, -1)}
+                          disabled={hunt.items.findIndex((candidate) => candidate.id === item.id) === 0}
+                        >
+                          <FontAwesome name="arrow-up" size={11} color={Colors.textSecondary} />
+                          <Text style={styles.scoutMiniBtnText}>Up</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.scoutMiniBtn}
+                          onPress={() => moveItem(item.id, 1)}
+                          disabled={hunt.items.findIndex((candidate) => candidate.id === item.id) === hunt.items.length - 1}
+                        >
+                          <FontAwesome name="arrow-down" size={11} color={Colors.textSecondary} />
+                          <Text style={styles.scoutMiniBtnText}>Down</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.scoutMiniBtn}
+                          onPress={() => handleScoutReroll(item)}
+                          disabled={scoutRerollingId === item.id}
+                        >
+                          {scoutRerollingId === item.id ? (
+                            <ActivityIndicator size="small" color={Colors.purple} />
+                          ) : (
+                            <>
+                              <FontAwesome name="refresh" size={11} color={Colors.purple} />
+                              <Text style={[styles.scoutMiniBtnText, { color: Colors.purple }]}>Reroll</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 ))}
@@ -904,6 +995,20 @@ export default function HuntScreen() {
               <View style={styles.modalButtons}>
                 <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setScoutModalVisible(false)}>
                   <Text style={styles.modalCancelText}>Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalCancelBtn, styles.tightenBtn]}
+                  onPress={handleTightenRoute}
+                  disabled={isScoutTightening}
+                >
+                  {isScoutTightening ? (
+                    <ActivityIndicator size="small" color={Colors.purple} />
+                  ) : (
+                    <>
+                      <FontAwesome name="compress" size={13} color={Colors.purple} />
+                      <Text style={styles.tightenBtnText}>Tighten</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleExportRoute}>
                   <FontAwesome name="map" size={13} color="#000" />
@@ -1205,6 +1310,21 @@ const styles = StyleSheet.create({
   confidenceTextCol: { flex: 1 },
   confidenceName: { color: Colors.text, fontWeight: '700', marginBottom: 3 },
   confidenceNote: { color: Colors.textSecondary, fontSize: 12, lineHeight: 18 },
+  scoutActionsRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  scoutMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  scoutMiniBtnText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  tightenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  tightenBtnText: { fontSize: 15, fontWeight: '700', color: Colors.purple },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
   modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
   modalInput: {

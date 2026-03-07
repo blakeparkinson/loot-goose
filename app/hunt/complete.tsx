@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  Share,
 } from 'react-native';
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
@@ -20,6 +21,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
+import { publishHunt } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 48) / 2;
@@ -40,10 +42,12 @@ export default function HuntCompleteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === id));
+  const saveHunt = useAppStore((s) => s.saveHunt);
 
   // Ref for the off-screen static card (what actually gets captured)
   const cardRef = useRef<View>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const gooseScale = useRef(new Animated.Value(0)).current;
   const gooseBounce = useRef(new Animated.Value(0)).current;
@@ -116,6 +120,9 @@ export default function HuntCompleteScreen() {
     hunt.startedAt && hunt.completedAt
       ? formatDuration(new Date(hunt.completedAt).getTime() - new Date(hunt.startedAt).getTime())
       : null;
+  const topStop = completedItems.reduce((best, item) => (item.points > (best?.points ?? -1) ? item : best), completedItems[0]);
+  const bestCapture = itemsWithPhotos[0];
+  const routeDistance = hunt.routeMetrics?.estimatedDistanceMiles;
 
   const handleSaveShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -146,6 +153,40 @@ export default function HuntCompleteScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleShareCode = async () => {
+    try {
+      let publishedCode = hunt.publishedCode;
+      if (!publishedCode) {
+        setIsPublishing(true);
+        const { code } = await publishHunt(hunt);
+        publishedCode = code;
+        await saveHunt({ ...hunt, publishedCode: code });
+      }
+      await Share.share({
+        message: `Play my Loot Goose hunt "${hunt.title}" in ${hunt.location}. Code: ${publishedCode}`,
+      });
+    } catch (e: any) {
+      Alert.alert('Share failed', e.message ?? 'Could not share the hunt code.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleRemix = () => {
+    router.push({
+      pathname: '/create',
+      params: {
+        presetTitle: `${hunt.title} Remix`,
+        presetSubtitle: 'Start from this finished hunt and tweak it.',
+        presetPrompt: hunt.prompt,
+        presetDifficulty: hunt.difficulty,
+        presetStopCount: String(hunt.items.length),
+        presetLocation: hunt.location,
+        challengeBadge: hunt.challengeBadge ?? '',
+      },
+    });
   };
 
   return (
@@ -189,6 +230,29 @@ export default function HuntCompleteScreen() {
                 </View>
               </>
             )}
+          </View>
+
+          <View style={styles.recapHighlights}>
+            {hunt.challengeBadge ? (
+              <View style={styles.recapHighlightPill}>
+                <Text style={styles.recapHighlightLabel}>{hunt.challengeBadge}</Text>
+              </View>
+            ) : null}
+            {routeDistance ? (
+              <View style={styles.recapHighlightPill}>
+                <Text style={styles.recapHighlightLabel}>~{routeDistance.toFixed(1)} mi</Text>
+              </View>
+            ) : null}
+            {topStop ? (
+              <View style={styles.recapHighlightPill}>
+                <Text style={styles.recapHighlightLabel}>Top stop: {topStop.name}</Text>
+              </View>
+            ) : null}
+            {bestCapture ? (
+              <View style={styles.recapHighlightPill}>
+                <Text style={styles.recapHighlightLabel}>Best capture: {bestCapture.name}</Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Photo grid */}
@@ -268,6 +332,23 @@ export default function HuntCompleteScreen() {
           )}
         </Animated.View>
 
+        <Animated.View style={[styles.highlightsCard, { opacity: fadeIn, transform: [{ translateY: statsSlide }] }]}>
+          {hunt.challengeBadge ? (
+            <View style={styles.highlightPill}>
+              <Text style={styles.highlightPillText}>{hunt.challengeBadge}</Text>
+            </View>
+          ) : null}
+          {routeDistance ? (
+            <Text style={styles.highlightText}>Route: about {routeDistance.toFixed(1)} miles</Text>
+          ) : null}
+          {topStop ? (
+            <Text style={styles.highlightText}>Top-scoring stop: {topStop.name}</Text>
+          ) : null}
+          {bestCapture ? (
+            <Text style={styles.highlightText}>Best capture: {bestCapture.name}</Text>
+          ) : null}
+        </Animated.View>
+
         {/* Photo grid */}
         {itemsWithPhotos.length > 0 && (
           <Animated.View style={[{ opacity: fadeIn, transform: [{ translateY: photosSlide }] }]}>
@@ -299,6 +380,23 @@ export default function HuntCompleteScreen() {
         >
           <FontAwesome name="image" size={16} color={Colors.gold} />
           <Text style={styles.shareBtnText}>{isSaving ? 'Saving…' : 'Save & Share Card'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.secondaryBtn, isPublishing && { opacity: 0.7 }]}
+          onPress={handleShareCode}
+          activeOpacity={0.8}
+          disabled={isPublishing}
+        >
+          <FontAwesome name="share-alt" size={15} color={Colors.purple} />
+          <Text style={styles.secondaryBtnText}>{isPublishing ? 'Publishing…' : (hunt.publishedCode ? 'Share Hunt Code' : 'Publish & Share Hunt')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={handleRemix}
+          activeOpacity={0.8}
+        >
+          <FontAwesome name="refresh" size={15} color={Colors.blue} />
+          <Text style={[styles.secondaryBtnText, { color: Colors.blue }]}>Remix This Hunt</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.doneBtn}
@@ -388,6 +486,22 @@ const styles = StyleSheet.create({
   recapStatVal: { fontSize: 22, fontWeight: '900', color: Colors.gold },
   recapStatLbl: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase' },
   recapStatDivider: { width: 1, backgroundColor: Colors.border },
+  recapHighlights: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  },
+  recapHighlightPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  recapHighlightLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
   recapPhotoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -494,6 +608,25 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 26, fontWeight: '900', color: Colors.gold },
   statLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   statDivider: { width: 1, backgroundColor: Colors.border },
+  highlightsCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+  },
+  highlightPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.purpleLight,
+  },
+  highlightPillText: { fontSize: 11, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  highlightText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
     fontSize: 12,
@@ -556,6 +689,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.gold,
   },
   shareBtnText: { fontSize: 15, fontWeight: '700', color: Colors.gold },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
   doneBtn: {
     backgroundColor: Colors.gold,
     paddingVertical: 16,

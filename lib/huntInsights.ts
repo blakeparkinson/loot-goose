@@ -105,6 +105,12 @@ export function calculateRouteMetrics(hunt: Pick<Hunt, 'coords' | 'items'>): Rou
 
   const lowConfidenceStops = hunt.items.filter((item) => estimateStopConfidence(item).level === 'low').length;
   const warnings: string[] = [];
+  const normalizedNames = new Map<string, number>();
+  for (const item of hunt.items) {
+    const key = item.name.trim().toLowerCase();
+    normalizedNames.set(key, (normalizedNames.get(key) ?? 0) + 1);
+  }
+  const duplicateLikeStops = Array.from(normalizedNames.values()).filter((count) => count > 1).length;
 
   if (coords.length < hunt.items.length) {
     warnings.push(`${hunt.items.length - coords.length} stop${hunt.items.length - coords.length === 1 ? '' : 's'} still need map coordinates.`);
@@ -117,6 +123,9 @@ export function calculateRouteMetrics(hunt: Pick<Hunt, 'coords' | 'items'>): Rou
   }
   if (lowConfidenceStops > 0) {
     warnings.push(`${lowConfidenceStops} stop${lowConfidenceStops === 1 ? '' : 's'} look low-confidence and may need a reroll.`);
+  }
+  if (duplicateLikeStops > 0) {
+    warnings.push('A couple of stops feel repetitive and may be worth rerolling.');
   }
 
   return {

@@ -23,9 +23,19 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
-import { Hunt } from '@/lib/types';
+import { Hunt, QuickPreset } from '@/lib/types';
 import { reverseGeocode } from '@/lib/geocoding';
-import { generateHunt, loadSharedHunt, joinCoopSession } from '@/lib/api';
+import {
+  browseHunts,
+  clonePlayableHunt,
+  generateHunt,
+  joinCoopSession,
+  LibraryHunt,
+  loadLibraryHighlights,
+  loadLibraryHunt,
+  loadSharedHunt,
+  WeeklyChallenge,
+} from '@/lib/api';
 import { randomPlayerName } from '@/app/hunt/coop/[code]';
 import { fetchWeather } from '@/lib/weather';
 
@@ -140,6 +150,9 @@ export default function HomeScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [joinPlayerName, setJoinPlayerName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [weeklyChallenge, setWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
+  const [featuredHunts, setFeaturedHunts] = useState<LibraryHunt[]>([]);
+  const [isLoadingHighlights, setIsLoadingHighlights] = useState(true);
 
   const handleMore = () => {
     const options = ['Browse Library', 'Join a Hunt', 'Cancel'];
@@ -166,6 +179,59 @@ export default function HomeScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteHunt(hunt.id) },
     ]);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [highlights, fallbackFeatured] = await Promise.all([
+          loadLibraryHighlights().catch(() => ({ weeklyChallenge: null, featured: [] })),
+          browseHunts('').catch(() => [] as LibraryHunt[]),
+        ]);
+        if (cancelled) return;
+        setWeeklyChallenge(highlights.weeklyChallenge);
+        setFeaturedHunts(highlights.featured.length > 0 ? highlights.featured.slice(0, 5) : fallbackFeatured.slice(0, 5));
+      } finally {
+        if (!cancelled) setIsLoadingHighlights(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const openPresetInCreate = (preset: QuickPreset, badge?: string) => {
+    router.push({
+      pathname: '/create',
+      params: {
+        presetTitle: preset.title,
+        presetSubtitle: preset.subtitle ?? '',
+        presetPrompt: preset.prompt,
+        presetDifficulty: preset.difficulty,
+        presetStopCount: String(preset.stopCount),
+        presetSuggestions: (preset.suggestions ?? []).join('|'),
+        presetLocation: preset.location ?? '',
+        challengeBadge: badge ?? '',
+      },
+    });
+  };
+
+  const handlePlayLibraryCard = async (item: LibraryHunt, source: Hunt['source'] = 'library', challengeBadge?: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      if (item.type === 'preset' && item.preset) {
+        openPresetInCreate(item.preset, challengeBadge ?? item.highlightBadge);
+        return;
+      }
+      const huntData = await loadLibraryHunt(item.code);
+      const newHunt = clonePlayableHunt({
+        ...huntData,
+        challengeBadge: challengeBadge ?? huntData.challengeBadge,
+      }, source);
+      await saveHunt(newHunt);
+      router.push(`/hunt/${newHunt.id}`);
+    } catch (e: any) {
+      Alert.alert('Could not load hunt', e.message ?? 'Please try again.');
+    }
   };
 
   const handleGooseLoose = async () => {
@@ -351,6 +417,94 @@ export default function HomeScreen() {
     </View>
   );
 
+  const renderFeaturedCard = (item: LibraryHunt) => (
+    <TouchableOpacity
+      key={`${item.code || item.id}-featured`}
+      style={styles.featuredCard}
+      onPress={() => handlePlayLibraryCard(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.featuredCardTop}>
+        <Text style={styles.featuredBadge}>{item.highlightBadge ?? 'Featured'}</Text>
+        <Text style={styles.featuredDiff}>{item.difficulty}</Text>
+      </View>
+      <Text style={styles.featuredTitle} numberOfLines={2}>{item.highlightTitle ?? item.title}</Text>
+      <Text style={styles.featuredSubtitle} numberOfLines={2}>
+        {item.highlightSubtitle ?? `${item.itemCount} stops · ${item.totalPoints} pts`}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const DiscoveryHeader = () => (
+    <View style={styles.discoveryHeader}>
+      {isLoadingHighlights ? (
+        <View style={styles.discoveryLoading}>
+          <ActivityIndicator size="small" color={Colors.textMuted} />
+        </View>
+      ) : weeklyChallenge ? (
+        <TouchableOpacity
+          style={styles.challengeHero}
+          onPress={() => {
+            if (weeklyChallenge.type === 'preset' && weeklyChallenge.preset) {
+              openPresetInCreate(weeklyChallenge.preset, weeklyChallenge.badge);
+            } else if (weeklyChallenge.code) {
+              handlePlayLibraryCard(
+                {
+                  id: weeklyChallenge.id ?? weeklyChallenge.code,
+                  code: weeklyChallenge.code,
+                  title: weeklyChallenge.title,
+                  location: weeklyChallenge.location ?? 'Nearby',
+                  difficulty: weeklyChallenge.difficulty ?? 'medium',
+                  totalPoints: weeklyChallenge.totalPoints ?? 0,
+                  itemCount: weeklyChallenge.itemCount ?? 0,
+                  plays: weeklyChallenge.plays ?? 0,
+                  createdAt: weeklyChallenge.createdAt ?? new Date().toISOString(),
+                  tags: weeklyChallenge.tags ?? [],
+                  routeDistanceMiles: weeklyChallenge.routeDistanceMiles,
+                  type: 'hunt',
+                },
+                'challenge',
+                weeklyChallenge.badge,
+              );
+            }
+          }}
+          activeOpacity={0.85}
+        >
+          <View style={styles.challengeHeroTop}>
+            <Text style={styles.challengeHeroBadge}>{weeklyChallenge.badge ?? 'Weekly Challenge'}</Text>
+            <FontAwesome name="bolt" size={14} color={Colors.gold} />
+          </View>
+          <Text style={styles.challengeHeroTitle}>{weeklyChallenge.title}</Text>
+          <Text style={styles.challengeHeroSubtitle}>
+            {weeklyChallenge.subtitle ?? 'Try the shared community prompt for this week.'}
+          </Text>
+          <Text style={styles.challengeHeroCta}>
+            {weeklyChallenge.type === 'preset' ? 'Start from challenge preset' : 'Play this week’s featured hunt'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {featuredHunts.length > 0 && (
+        <View style={styles.featuredSection}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionHeadTitle}>Featured From The Library</Text>
+            <TouchableOpacity onPress={() => router.push('/library')} activeOpacity={0.7}>
+              <Text style={styles.sectionHeadLink}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={featuredHunts}
+            keyExtractor={(item) => `${item.code || item.id}-home-featured`}
+            horizontal
+            renderItem={({ item }) => renderFeaturedCard(item)}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.featuredList}
+          />
+        </View>
+      )}
+    </View>
+  );
+
   const EmptyFiltered = () => (
     <View style={styles.emptyFiltered}>
       <Text style={styles.emptyFilteredText}>
@@ -389,7 +543,12 @@ export default function HomeScreen() {
         keyExtractor={(h) => h.id}
         renderItem={renderHunt}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={hunts.length > 0 ? Toolbar : null}
+        ListHeaderComponent={
+          <View>
+            <DiscoveryHeader />
+            {hunts.length > 0 ? Toolbar : null}
+          </View>
+        }
         ListEmptyComponent={hunts.length === 0 ? EmptyState : EmptyFiltered}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -539,6 +698,44 @@ const styles = StyleSheet.create({
   filterPillActive: { borderColor: Colors.gold, backgroundColor: Colors.goldLight },
   filterPillText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
   filterPillTextActive: { color: Colors.gold },
+  discoveryHeader: { marginBottom: 16, gap: 14 },
+  discoveryLoading: { paddingVertical: 12, alignItems: 'center' },
+  challengeHero: {
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: `${Colors.gold}35`,
+  },
+  challengeHeroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  challengeHeroBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.gold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  challengeHeroTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  challengeHeroSubtitle: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21, marginBottom: 12 },
+  challengeHeroCta: { fontSize: 13, fontWeight: '700', color: Colors.gold },
+  featuredSection: { gap: 10 },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionHeadTitle: { fontSize: 13, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeadLink: { fontSize: 12, fontWeight: '700', color: Colors.gold },
+  featuredList: { gap: 10, paddingRight: 4 },
+  featuredCard: {
+    width: 210,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  featuredCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
+  featuredBadge: { fontSize: 10, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  featuredDiff: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+  featuredTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  featuredSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
   emptyFiltered: { alignItems: 'center', paddingTop: 40 },
   emptyFilteredText: { fontSize: 15, color: Colors.textMuted },
 

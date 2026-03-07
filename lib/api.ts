@@ -1,4 +1,4 @@
-import { Hunt, HuntDifficulty, HuntItem } from './types';
+import { HighlightType, Hunt, HuntDifficulty, HuntItem, QuickPreset } from './types';
 import { enrichHuntMetadata, estimateStopConfidence } from './huntInsights';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -56,6 +56,26 @@ function toClientItem(item: any, id: string): HuntItem {
   };
   const confidence = estimateStopConfidence(mapped);
   return { ...mapped, aiConfidence: confidence.level, confidenceNote: confidence.note };
+}
+
+export function clonePlayableHunt(huntData: Hunt, source: Hunt['source'] = 'library'): Hunt {
+  return enrichHuntMetadata({
+    ...huntData,
+    source,
+    id: `hunt-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    earnedPoints: 0,
+    startedAt: undefined,
+    completedAt: undefined,
+    items: huntData.items.map((item, i) => ({
+      ...item,
+      id: `item-${Date.now()}-${i}`,
+      completed: false,
+      photoUri: undefined,
+      completedAt: undefined,
+      verificationNote: undefined,
+    })),
+  });
 }
 
 export async function generateHunt(params: {
@@ -220,6 +240,34 @@ export interface LibraryHunt {
   createdAt: string;
   tags: string[];
   routeDistanceMiles?: number;
+  highlightTitle?: string;
+  highlightSubtitle?: string;
+  highlightBadge?: string;
+  preset?: QuickPreset;
+  type?: HighlightType;
+}
+
+export interface WeeklyChallenge {
+  type: HighlightType;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  preset?: QuickPreset;
+  id?: string;
+  code?: string;
+  location?: string;
+  difficulty?: HuntDifficulty;
+  totalPoints?: number;
+  itemCount?: number;
+  plays?: number;
+  createdAt?: string;
+  tags?: string[];
+  routeDistanceMiles?: number;
+}
+
+export interface LibraryHighlights {
+  weeklyChallenge: WeeklyChallenge | null;
+  featured: LibraryHunt[];
 }
 
 export async function publishHunt(hunt: Hunt): Promise<{ code: string }> {
@@ -240,9 +288,54 @@ export async function browseHunts(query: string): Promise<LibraryHunt[]> {
     createdAt: r.created_at,
     tags: Array.isArray(r.tags) ? r.tags : [],
     routeDistanceMiles: typeof r.route_distance_miles === 'number' ? r.route_distance_miles : undefined,
+    highlightTitle: r.highlight_title,
+    highlightSubtitle: r.highlight_subtitle,
+    highlightBadge: r.highlight_badge,
+    preset: r.preset_data,
+    type: r.type,
   }));
 }
 
 export async function loadLibraryHunt(code: string): Promise<Hunt> {
   return enrichHuntMetadata(await callEdgeFunction('load-library-hunt', { code }, 15000));
+}
+
+export async function loadLibraryHighlights(): Promise<LibraryHighlights> {
+  const data = await callEdgeFunction('library-highlights', {}, 10000);
+  return {
+    weeklyChallenge: data.weeklyChallenge
+      ? {
+          ...data.weeklyChallenge,
+          difficulty: data.weeklyChallenge.difficulty as HuntDifficulty | undefined,
+          tags: Array.isArray(data.weeklyChallenge.tags) ? data.weeklyChallenge.tags : [],
+          routeDistanceMiles:
+            typeof data.weeklyChallenge.route_distance_miles === 'number'
+              ? data.weeklyChallenge.route_distance_miles
+              : undefined,
+          createdAt: data.weeklyChallenge.created_at,
+          itemCount: data.weeklyChallenge.item_count,
+          totalPoints: data.weeklyChallenge.total_points,
+        }
+      : null,
+    featured: Array.isArray(data.featured)
+      ? data.featured.map((r: any) => ({
+          id: r.id,
+          code: r.code,
+          title: r.title,
+          location: r.location,
+          difficulty: r.difficulty as HuntDifficulty,
+          totalPoints: r.total_points ?? 0,
+          itemCount: r.item_count ?? 0,
+          plays: r.plays ?? 0,
+          createdAt: r.created_at,
+          tags: Array.isArray(r.tags) ? r.tags : [],
+          routeDistanceMiles: typeof r.route_distance_miles === 'number' ? r.route_distance_miles : undefined,
+          highlightTitle: r.highlight_title,
+          highlightSubtitle: r.highlight_subtitle,
+          highlightBadge: r.highlight_badge,
+          preset: r.preset_data,
+          type: r.preset_data ? 'preset' : 'hunt',
+        }))
+      : [],
+  };
 }

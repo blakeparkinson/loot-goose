@@ -13,8 +13,15 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
-import { Hunt, HuntDifficulty } from '@/lib/types';
-import { LibraryHunt, browseHunts, loadLibraryHunt } from '@/lib/api';
+import { Hunt, HuntDifficulty, QuickPreset } from '@/lib/types';
+import {
+  browseHunts,
+  clonePlayableHunt,
+  LibraryHunt,
+  loadLibraryHighlights,
+  loadLibraryHunt,
+  WeeklyChallenge,
+} from '@/lib/api';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -33,6 +40,8 @@ export default function LibraryScreen() {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | HuntDifficulty>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [weeklyChallenge, setWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
+  const [featured, setFeatured] = useState<LibraryHunt[]>([]);
   // Cache of loaded full hunts keyed by code
   const [huntCache, setHuntCache] = useState<Record<string, Hunt>>({});
   const [loadingExpandCode, setLoadingExpandCode] = useState<string | null>(null);
@@ -42,8 +51,13 @@ export default function LibraryScreen() {
   const fetchResults = async (q: string) => {
     setLoading(true);
     try {
-      const data = await browseHunts(q);
+      const [data, highlights] = await Promise.all([
+        browseHunts(q),
+        loadLibraryHighlights().catch(() => ({ weeklyChallenge: null, featured: [] })),
+      ]);
       setResults(data);
+      setWeeklyChallenge(highlights.weeklyChallenge);
+      setFeatured(highlights.featured);
     } catch {
       setResults([]);
     } finally {
@@ -75,11 +89,14 @@ export default function LibraryScreen() {
   const displayedResults = useMemo(
     () =>
       results.filter((item) => {
+        if (!query.trim() && difficultyFilter === 'all' && !tagFilter && featured.some((featuredItem) => featuredItem.code === item.code)) {
+          return false;
+        }
         if (difficultyFilter !== 'all' && item.difficulty !== difficultyFilter) return false;
         if (tagFilter && !(item.tags ?? []).includes(tagFilter)) return false;
         return true;
       }),
-    [difficultyFilter, results, tagFilter],
+    [difficultyFilter, featured, query, results, tagFilter],
   );
 
   const handleToggleExpand = async (item: LibraryHunt) => {
@@ -107,20 +124,12 @@ export default function LibraryScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoadingCode(item.code);
     try {
+      if (item.type === 'preset' && item.preset) {
+        openPreset(item.preset, item.highlightBadge);
+        return;
+      }
       const huntData: Hunt = huntCache[item.code] ?? (await loadLibraryHunt(item.code));
-      const newHunt: Hunt = {
-        ...huntData,
-        id: `hunt-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        earnedPoints: 0,
-        items: huntData.items.map((it, i) => ({
-          ...it,
-          id: `item-${Date.now()}-${i}`,
-          completed: false,
-          photoUri: undefined,
-          verificationNote: undefined,
-        })),
-      };
+      const newHunt: Hunt = clonePlayableHunt(huntData, 'library');
       await saveHunt(newHunt);
       router.push(`/hunt/${newHunt.id}`);
     } catch {
@@ -128,6 +137,22 @@ export default function LibraryScreen() {
     } finally {
       setLoadingCode(null);
     }
+  };
+
+  const openPreset = (preset: QuickPreset, badge?: string) => {
+    router.push({
+      pathname: '/create',
+      params: {
+        presetTitle: preset.title,
+        presetSubtitle: preset.subtitle ?? '',
+        presetPrompt: preset.prompt,
+        presetDifficulty: preset.difficulty,
+        presetStopCount: String(preset.stopCount),
+        presetSuggestions: (preset.suggestions ?? []).join('|'),
+        presetLocation: preset.location ?? '',
+        challengeBadge: badge ?? '',
+      },
+    });
   };
 
   const renderCard = ({ item }: { item: LibraryHunt }) => {
@@ -253,6 +278,57 @@ export default function LibraryScreen() {
     );
   };
 
+  const renderChallengeCard = () => {
+    if (!weeklyChallenge) return null;
+    return (
+      <TouchableOpacity
+        style={styles.challengeCard}
+        onPress={() => {
+          if (weeklyChallenge.type === 'preset' && weeklyChallenge.preset) {
+            openPreset(weeklyChallenge.preset, weeklyChallenge.badge);
+          } else if (weeklyChallenge.code) {
+            handlePlay({
+              id: weeklyChallenge.id ?? weeklyChallenge.code,
+              code: weeklyChallenge.code,
+              title: weeklyChallenge.title,
+              location: weeklyChallenge.location ?? 'Nearby',
+              difficulty: weeklyChallenge.difficulty ?? 'medium',
+              totalPoints: weeklyChallenge.totalPoints ?? 0,
+              itemCount: weeklyChallenge.itemCount ?? 0,
+              plays: weeklyChallenge.plays ?? 0,
+              createdAt: weeklyChallenge.createdAt ?? new Date().toISOString(),
+              tags: weeklyChallenge.tags ?? [],
+              routeDistanceMiles: weeklyChallenge.routeDistanceMiles,
+              type: 'hunt',
+            });
+          }
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.challengeBadge}>{weeklyChallenge.badge ?? 'Weekly Challenge'}</Text>
+        <Text style={styles.challengeTitle}>{weeklyChallenge.title}</Text>
+        <Text style={styles.challengeSubtitle}>
+          {weeklyChallenge.subtitle ?? 'Try the shared weekly hunt before it rotates out.'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const Header = () => (
+    <View>
+      {renderChallengeCard()}
+      {featured.length > 0 && (
+        <View style={styles.featuredSection}>
+          <Text style={styles.sectionTitle}>Featured</Text>
+          {featured.map((item) => (
+            <View key={`${item.code || item.id}-featured-library`}>{renderCard({ item })}</View>
+          ))}
+        </View>
+      )}
+      <Text style={styles.sectionTitle}>Browse All Hunts</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.searchBar}>
@@ -317,6 +393,7 @@ export default function LibraryScreen() {
           keyExtractor={(h) => h.id}
           renderItem={renderCard}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={Header}
           ListEmptyComponent={EmptyState}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -351,6 +428,19 @@ const styles = StyleSheet.create({
   },
 
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  challengeCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${Colors.gold}35`,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  challengeBadge: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase', marginBottom: 8 },
+  challengeTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 6 },
+  challengeSubtitle: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   filterBar: {
     flexDirection: 'row',
     gap: 8,
@@ -374,6 +464,15 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: Colors.gold },
 
   list: { padding: 16, paddingBottom: 40, flexGrow: 1 },
+  featuredSection: { marginBottom: 12 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
 
   card: {
     backgroundColor: Colors.card,

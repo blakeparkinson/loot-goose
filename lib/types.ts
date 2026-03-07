@@ -1,5 +1,6 @@
 export type HuntDifficulty = 'easy' | 'medium' | 'hard';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type HighlightType = 'hunt' | 'preset';
 
 export interface Coords {
   latitude: number;
@@ -13,6 +14,16 @@ export interface RouteMetrics {
   omittedFromMapExport: number;
   lowConfidenceStops: number;
   warnings: string[];
+}
+
+export interface QuickPreset {
+  title: string;
+  prompt: string;
+  difficulty: HuntDifficulty;
+  stopCount: number;
+  suggestions?: string[];
+  subtitle?: string;
+  location?: string;
 }
 
 export interface HuntItem {
@@ -49,4 +60,6 @@ export interface Hunt {
   publishedCode?: string;  // set once published to library; re-publish shows existing code
   tags?: string[];
   routeMetrics?: RouteMetrics;
+  source?: 'generated' | 'library' | 'challenge' | 'goose_loose';
+  challengeBadge?: string;
 }
