@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +50,16 @@ export default function CameraScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [zoom, setZoom] = useState(0);
+  const zoomBase = useRef(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onBegin(() => { zoomBase.current = zoom; })
+    .onUpdate((e) => {
+      // Map pinch scale to 0–1 zoom range (1x = no zoom, ~4x = max)
+      const next = zoomBase.current + (e.scale - 1) / 3;
+      setZoom(Math.min(1, Math.max(0, next)));
+    });
   // For co-op joiners (no local hunt), fall back to inline item data from route params
   const item = hunt?.items.find((i) => i.id === itemId) ?? (
     itemNameOverride
@@ -229,9 +240,16 @@ export default function CameraScreen() {
   // Live camera view
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+      <CameraView ref={cameraRef} style={styles.camera} facing="back" zoom={zoom}>
         {topBar}
         {summaryBar}
+
+        {/* Zoom indicator */}
+        {zoom > 0.01 && (
+          <View style={styles.zoomBadge}>
+            <Text style={styles.zoomText}>{(1 + zoom * 3).toFixed(1)}x</Text>
+          </View>
+        )}
 
         {/* Capture button */}
         <View style={styles.captureRow}>
@@ -246,6 +264,11 @@ export default function CameraScreen() {
           )}
         </View>
       </CameraView>
+
+      {/* Transparent overlay to capture pinch gestures without interfering with CameraView */}
+      <GestureDetector gesture={pinchGesture}>
+        <View style={styles.gestureOverlay} />
+      </GestureDetector>
     </View>
   );
 }
@@ -288,6 +311,20 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.gold}44`,
   },
   summaryText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
+
+  gestureOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  zoomBadge: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  zoomText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   captureRow: {
     position: 'absolute',
