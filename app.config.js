@@ -60,8 +60,8 @@ export default {
       'expo-updates',
       'expo-secure-store',
       [
-        'expo-camera',
-        { cameraPermission: 'Loot Goose needs camera access to capture scavenger hunt items.' },
+        'react-native-vision-camera',
+        { cameraPermissionText: 'Loot Goose needs camera access to capture scavenger hunt items.' },
       ],
       [
         'expo-location',

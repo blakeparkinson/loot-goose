@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,15 @@ import {
   Platform,
   Image,
 } from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  PhotoFile,
+} from 'react-native-vision-camera';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-native-reanimated';
+import { File } from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -18,6 +25,8 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { verifyPhoto, completeCoopItem, uploadHuntPhoto } from '@/lib/api';
+
+const ReanimatedCamera = Animated.createAnimatedComponent(Camera);
 
 export default function CameraScreen() {
   const {
@@ -41,25 +50,53 @@ export default function CameraScreen() {
   }>();
   const isCoopMode = !!coopCode;
   const router = useRouter();
-  const [permission, requestPermission] = useCameraPermissions();
+  const { hasPermission, requestPermission } = useCameraPermission();
   const insets = useSafeAreaInsets();
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<Camera>(null);
+  const device = useCameraDevice('back');
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === huntId));
   const completeItem = useAppStore((s) => s.completeItem);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [zoom, setZoom] = useState(0);
-  const zoomBase = useRef(0);
+
+  // Zoom state — vision-camera uses absolute zoom values (e.g. 0.5 for ultra-wide, 1.0 for wide)
+  const maxZoom = Math.min(device?.maxZoom ?? 5, 5);
+  const minZoom = device?.minZoom ?? 1;
+  const neutralZoom = device?.neutralZoom ?? 1;
+  const zoom = useSharedValue(neutralZoom);
+  const zoomOffset = useSharedValue(0);
+  const [displayZoom, setDisplayZoom] = useState(neutralZoom);
+
+  // Reset zoom when device changes
+  useEffect(() => {
+    if (device) {
+      zoom.value = device.neutralZoom;
+      setDisplayZoom(device.neutralZoom);
+    }
+  }, [device]);
+
+  const updateDisplayZoom = useCallback((value: number) => {
+    setDisplayZoom(value);
+  }, []);
 
   const pinchGesture = Gesture.Pinch()
-    .onBegin(() => { zoomBase.current = zoom; })
-    .onUpdate((e) => {
-      // Map pinch scale to 0–1 zoom range (1x = no zoom, ~4x = max)
-      const next = zoomBase.current + (e.scale - 1) / 3;
-      setZoom(Math.min(1, Math.max(0, next)));
+    .onBegin(() => {
+      zoomOffset.value = zoom.value;
+    })
+    .onUpdate((event) => {
+      const scale = event.scale;
+      const next = zoomOffset.value * scale;
+      const clamped = Math.min(maxZoom, Math.max(minZoom, next));
+      zoom.value = clamped;
+      runOnJS(updateDisplayZoom)(clamped);
     });
+
+  const animatedProps = useAnimatedProps(() => ({
+    zoom: zoom.value,
+  }));
+
   // For co-op joiners (no local hunt), fall back to inline item data from route params
   const item = hunt?.items.find((i) => i.id === itemId) ?? (
     itemNameOverride
@@ -75,7 +112,7 @@ export default function CameraScreen() {
   );
 
   useEffect(() => {
-    if (!permission?.granted) requestPermission();
+    if (!hasPermission) requestPermission();
   }, []);
 
   if ((!hunt && !isCoopMode) || !item) {
@@ -89,7 +126,7 @@ export default function CameraScreen() {
     );
   }
 
-  if (!permission?.granted) {
+  if (!hasPermission) {
     return (
       <View style={styles.centered}>
         <Text style={styles.permText}>Camera access is needed to capture hunt items.</Text>
@@ -100,19 +137,28 @@ export default function CameraScreen() {
     );
   }
 
+  if (!device) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={Colors.gold} size="large" />
+        <Text style={{ color: Colors.textSecondary, marginTop: 12 }}>Loading camera...</Text>
+      </View>
+    );
+  }
+
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing || isVerifying) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsCapturing(true);
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.6, base64: true });
-      if (!photo) throw new Error('No photo captured');
+      const photo: PhotoFile = await cameraRef.current.takePhoto();
+      const photoUri = `file://${photo.path}`;
       setIsCapturing(false);
-      setCapturedUri(photo.uri);
+      setCapturedUri(photoUri);
       setIsVerifying(true);
 
-      const imageBase64 = photo.base64 ?? '';
+      const imageBase64 = await new File(photoUri).base64();
       const verification = await verifyPhoto({
         imageBase64,
         itemName: item.name,
@@ -126,7 +172,6 @@ export default function CameraScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         if (isCoopMode) {
-          // Co-op path — write to Supabase, not Zustand. Realtime updates the coop screen.
           try {
             await completeCoopItem({
               code: coopCode!,
@@ -135,19 +180,14 @@ export default function CameraScreen() {
               verificationNote: verification.message,
             });
           } catch (e: any) {
-            // 409 means someone else completed it first — navigate back anyway
             if (!e.message?.includes('409') && !e.message?.includes('Already') && !e.message?.includes('alreadyCompleted')) {
               throw e;
             }
           }
-          // router.back() falls through to handleDone; the coop screen updates via Realtime
         } else {
-          // Solo path — upload photo to Supabase Storage for persistence
-          let persistentUri = photo.uri;
+          let persistentUri = photoUri;
           try {
-            if (photo.base64) {
-              persistentUri = await uploadHuntPhoto(photo.base64, huntId, itemId);
-            }
+            persistentUri = await uploadHuntPhoto(imageBase64, huntId, itemId);
           } catch {
             // Upload failed (offline, etc.) — fall back to local URI
           }
@@ -207,7 +247,6 @@ export default function CameraScreen() {
         <Image source={{ uri: capturedUri }} style={styles.frozenPhoto} resizeMode="cover" />
         {topBar}
 
-        {/* Verifying overlay */}
         {isVerifying && (
           <View style={styles.verifyingOverlay}>
             <ActivityIndicator color="#fff" size="large" />
@@ -216,7 +255,6 @@ export default function CameraScreen() {
           </View>
         )}
 
-        {/* Result overlay */}
         {result && (
           <View style={[styles.resultOverlay, { backgroundColor: result.success ? 'rgba(34,139,34,0.88)' : 'rgba(180,40,40,0.88)' }]}>
             <Text style={styles.resultEmoji}>{result.success ? '🎉' : '❌'}</Text>
@@ -240,34 +278,37 @@ export default function CameraScreen() {
   // Live camera view
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back" zoom={zoom}>
-        {topBar}
-        {summaryBar}
-
-        {/* Zoom indicator */}
-        {zoom > 0.01 && (
-          <View style={styles.zoomBadge}>
-            <Text style={styles.zoomText}>{(1 + zoom * 3).toFixed(1)}x</Text>
-          </View>
-        )}
-
-        {/* Capture button */}
-        <View style={styles.captureRow}>
-          {isCapturing ? (
-            <View style={styles.captureBtnOuter}>
-              <ActivityIndicator color={Colors.gold} size="large" />
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.captureBtnOuter} onPress={handleCapture} activeOpacity={0.8}>
-              <View style={styles.captureBtnInner} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </CameraView>
-
-      {/* Transparent overlay to capture pinch gestures without interfering with CameraView */}
       <GestureDetector gesture={pinchGesture}>
-        <View style={styles.gestureOverlay} />
+        <View style={styles.camera}>
+          <ReanimatedCamera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={true}
+            photo={true}
+            animatedProps={animatedProps}
+          />
+          {topBar}
+          {summaryBar}
+
+          {Math.abs(displayZoom - neutralZoom) > 0.05 && (
+            <View style={styles.zoomBadge}>
+              <Text style={styles.zoomText}>{displayZoom.toFixed(1)}x</Text>
+            </View>
+          )}
+
+          <View style={styles.captureRow}>
+            {isCapturing ? (
+              <View style={styles.captureBtnOuter}>
+                <ActivityIndicator color={Colors.gold} size="large" />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.captureBtnOuter} onPress={handleCapture} activeOpacity={0.8}>
+                <View style={styles.captureBtnInner} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </GestureDetector>
     </View>
   );
@@ -311,10 +352,6 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.gold}44`,
   },
   summaryText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
-
-  gestureOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
 
   zoomBadge: {
     alignSelf: 'center',
