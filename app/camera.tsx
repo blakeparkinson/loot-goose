@@ -16,7 +16,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
-import { verifyPhoto, completeCoopItem } from '@/lib/api';
+import { verifyPhoto, completeCoopItem, uploadHuntPhoto } from '@/lib/api';
 
 export default function CameraScreen() {
   const {
@@ -131,9 +131,17 @@ export default function CameraScreen() {
           }
           // router.back() falls through to handleDone; the coop screen updates via Realtime
         } else {
-          // Solo path — existing behavior
+          // Solo path — upload photo to Supabase Storage for persistence
+          let persistentUri = photo.uri;
+          try {
+            if (photo.base64) {
+              persistentUri = await uploadHuntPhoto(photo.base64, huntId, itemId);
+            }
+          } catch {
+            // Upload failed (offline, etc.) — fall back to local URI
+          }
           const isLastItem = hunt!.items.filter((i) => !i.completed && i.id !== itemId).length === 0;
-          await completeItem(huntId, itemId, photo.uri, verification.message);
+          await completeItem(huntId, itemId, persistentUri, verification.message);
           if (isLastItem) {
             router.replace({ pathname: '/hunt/complete', params: { id: huntId } });
             return;

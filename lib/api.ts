@@ -4,6 +4,29 @@ import { enrichHuntMetadata, estimateStopConfidence } from './huntInsights';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+/**
+ * Upload a hunt photo to Supabase Storage and return the public URL.
+ * Falls back to the local URI if the upload fails (offline, etc.).
+ */
+export async function uploadHuntPhoto(base64: string, huntId: string, itemId: string): Promise<string> {
+  try {
+    const path = `${huntId}/${itemId}-${Date.now()}.jpg`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/hunt-photos/${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'image/jpeg',
+      },
+      body: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
+    });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    return `${SUPABASE_URL}/storage/v1/object/public/hunt-photos/${path}`;
+  } catch (e) {
+    if (__DEV__) console.warn('[uploadHuntPhoto] failed, using local URI', e);
+    throw e;
+  }
+}
+
 const POINT_RANGE: Record<HuntDifficulty, [number, number]> = {
   easy: [10, 20],
   medium: [15, 40],

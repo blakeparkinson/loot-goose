@@ -28,7 +28,8 @@ const PHOTO_SIZE = (width - 48) / 2;
 
 // Fixed card dimensions for the shareable capture
 const CARD_WIDTH = 375;
-const CARD_PHOTO_SIZE = (CARD_WIDTH - 48) / 2;
+// Grid cell: 3 columns with 6px gaps, 16px padding each side
+const CARD_GRID_CELL = (CARD_WIDTH - 32 - 12) / 3;
 
 function formatDuration(ms: number): string {
   const totalSecs = Math.floor(ms / 1000);
@@ -115,7 +116,8 @@ export default function HuntCompleteScreen() {
 
   const completedItems = hunt.items.filter((i) => i.completed);
   const itemsWithPhotos = completedItems.filter((i) => i.photoUri);
-  const photoItems = itemsWithPhotos.slice(0, 4);
+  const heroPhoto = itemsWithPhotos[0];
+  const gridPhotos = itemsWithPhotos.slice(1);
   const duration =
     hunt.startedAt && hunt.completedAt
       ? formatDuration(new Date(hunt.completedAt).getTime() - new Date(hunt.startedAt).getTime())
@@ -255,18 +257,30 @@ export default function HuntCompleteScreen() {
             ) : null}
           </View>
 
-          {/* Photo grid */}
-          {photoItems.length > 0 && (
-            <View style={styles.recapPhotoGrid}>
-              {photoItems.map((item) => (
-                <View key={item.id} style={styles.recapPhotoCell}>
-                  <Image source={{ uri: item.photoUri }} style={styles.recapPhoto} />
-                  <View style={styles.recapPhotoOverlay}>
-                    <Text style={styles.recapPhotoName} numberOfLines={2}>{item.name}</Text>
-                    <Text style={styles.recapPhotoPoints}>{item.points}pts</Text>
-                  </View>
+          {/* Photo collage */}
+          {heroPhoto && (
+            <View style={styles.recapCollage}>
+              {/* Hero photo — full width */}
+              <View style={styles.recapHeroPhoto}>
+                <Image source={{ uri: heroPhoto.photoUri }} style={styles.recapPhoto} />
+                <View style={styles.recapPhotoOverlay}>
+                  <Text style={styles.recapPhotoName} numberOfLines={2}>{heroPhoto.name}</Text>
+                  <Text style={styles.recapPhotoPoints}>{heroPhoto.points}pts</Text>
                 </View>
-              ))}
+              </View>
+              {/* Supporting photos — 3-column grid */}
+              {gridPhotos.length > 0 && (
+                <View style={styles.recapGridRow}>
+                  {gridPhotos.map((item) => (
+                    <View key={item.id} style={styles.recapGridCell}>
+                      <Image source={{ uri: item.photoUri }} style={styles.recapPhoto} />
+                      <View style={styles.recapGridOverlay}>
+                        <Text style={styles.recapGridName} numberOfLines={1}>{item.name}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -502,35 +516,55 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   recapHighlightLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
-  recapPhotoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  recapCollage: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 6,
     marginBottom: 16,
   },
-  recapPhotoCell: {
-    width: CARD_PHOTO_SIZE,
-    height: CARD_PHOTO_SIZE,
-    borderRadius: 10,
+  recapHeroPhoto: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: Colors.surface,
   },
+  recapGridRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  recapGridCell: {
+    width: CARD_GRID_CELL,
+    height: CARD_GRID_CELL,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+  },
+  recapGridOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  recapGridName: { fontSize: 9, fontWeight: '700', color: '#fff' },
   recapPhoto: { width: '100%', height: '100%' },
   recapPhotoOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.62)',
-    padding: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    padding: 8,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 4,
   },
-  recapPhotoName: { flex: 1, fontSize: 10, fontWeight: '700', color: '#fff', lineHeight: 13 },
-  recapPhotoPoints: { fontSize: 10, fontWeight: '800', color: Colors.gold },
+  recapPhotoName: { flex: 1, fontSize: 12, fontWeight: '700', color: '#fff', lineHeight: 15 },
+  recapPhotoPoints: { fontSize: 11, fontWeight: '800', color: Colors.gold },
   recapWatermark: {
     textAlign: 'center',
     fontSize: 12,
