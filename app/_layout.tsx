@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Colors from '@/constants/Colors';
 import GooseSplash from '@/components/GooseSplash';
 import { useAppStore } from '@/lib/store';
@@ -27,17 +28,17 @@ export default function RootLayout() {
 
   if (!appReady || !splashDone) {
     return (
-      <>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style="light" />
         {appReady && (
           <GooseSplash onFinished={() => setSplashDone(true)} />
         )}
-      </>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -58,6 +59,6 @@ export default function RootLayout() {
           options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
         />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }
