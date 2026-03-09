@@ -53,6 +53,7 @@ export default function RootLayout() {
         <Stack.Screen name="create" options={{ title: 'New Hunt', presentation: 'modal' }} />
         <Stack.Screen name="hunt/[id]" options={{ title: 'Hunt' }} />
         <Stack.Screen name="hunt/complete" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ title: 'My Stats' }} />
         <Stack.Screen name="library" options={{ title: 'Hunt Library 🗂' }} />
         <Stack.Screen
           name="camera"

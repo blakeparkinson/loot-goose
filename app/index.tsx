@@ -17,7 +17,7 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
@@ -135,10 +135,21 @@ const GOOSE_LOOSE_MESSAGES = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const hunts = useAppStore((s) => s.hunts);
   const saveHunt = useAppStore((s) => s.saveHunt);
   const deleteHunt = useAppStore((s) => s.deleteHunt);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={() => router.push('/profile')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 4 }}>
+          <FontAwesome name="trophy" size={20} color={Colors.gold} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, router]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
