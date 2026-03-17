@@ -33,7 +33,9 @@ const POINT_RANGE: Record<HuntDifficulty, [number, number]> = {
   hard: [20, 60],
 };
 
-async function callEdgeFunction(fnName: string, body: object, timeoutMs = 40000) {
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+
+async function callEdgeFunctionOnce(fnName: string, body: object, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -49,9 +51,15 @@ async function callEdgeFunction(fnName: string, body: object, timeoutMs = 40000)
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(text || `Request failed with status ${res.status}`);
+      const err = new Error(text || `Request failed with status ${res.status}`);
+      (err as any).status = res.status;
+      throw err;
     }
-    return res.json();
+    try {
+      return await res.json();
+    } catch {
+      throw new Error('Server returned invalid JSON. Please try again.');
+    }
   } catch (e: any) {
     if (e.name === 'AbortError') {
       throw new Error('Request timed out. The server may be warming up — please try again.');
@@ -59,6 +67,19 @@ async function callEdgeFunction(fnName: string, body: object, timeoutMs = 40000)
     throw e;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function callEdgeFunction(fnName: string, body: object, timeoutMs = 40000) {
+  try {
+    return await callEdgeFunctionOnce(fnName, body, timeoutMs);
+  } catch (e: any) {
+    const isRetryable = e.name === 'TypeError' || // network error
+      RETRYABLE_STATUSES.has(e.status) ||
+      e.message?.includes('timed out');
+    if (!isRetryable) throw e;
+    await new Promise((r) => setTimeout(r, 1000));
+    return callEdgeFunctionOnce(fnName, body, timeoutMs);
   }
 }
 
@@ -154,13 +175,15 @@ export async function insertItem(params: {
   existingItemNames: string[];
   beforeStop: string;
   afterStop: string;
+  huntCoords?: { latitude: number; longitude: number };
   customPrompt?: string;
 }): Promise<HuntItem> {
-  const { location, prompt, difficulty, existingItemNames, beforeStop, afterStop, customPrompt } = params;
+  const { location, prompt, difficulty, existingItemNames, beforeStop, afterStop, huntCoords, customPrompt } = params;
   const [minPts, maxPts] = POINT_RANGE[difficulty];
 
   const data = await callEdgeFunction('insert-item', {
     location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop, customPrompt,
+    huntCoords: huntCoords ? { lat: huntCoords.latitude, lon: huntCoords.longitude } : undefined,
   });
 
   return toClientItem(data, `item-${Date.now()}-insert`);
@@ -239,12 +262,16 @@ export async function swapItem(params: {
   prompt: string;
   difficulty: HuntDifficulty;
   existingItemNames: string[];
+  huntCoords?: { latitude: number; longitude: number };
   customPrompt?: string;
 }): Promise<HuntItem> {
-  const { location, prompt, difficulty, existingItemNames, customPrompt } = params;
+  const { location, prompt, difficulty, existingItemNames, huntCoords, customPrompt } = params;
   const [minPts, maxPts] = POINT_RANGE[difficulty];
 
-  const data = await callEdgeFunction('swap-item', { location, prompt, minPts, maxPts, existingItemNames, customPrompt });
+  const data = await callEdgeFunction('swap-item', {
+    location, prompt, minPts, maxPts, existingItemNames, customPrompt,
+    huntCoords: huntCoords ? { lat: huntCoords.latitude, lon: huntCoords.longitude } : undefined,
+  });
 
   return toClientItem(data, `item-${Date.now()}-swap`);
 }

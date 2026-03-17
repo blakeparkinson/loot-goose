@@ -59,6 +59,7 @@ export interface Hunt {
   completedAt?: string;
   publishedCode?: string;  // set once published to library; re-publish shows existing code
   tags?: string[];
+  swappedItemNames?: string[];
   routeMetrics?: RouteMetrics;
   source?: 'generated' | 'library' | 'challenge' | 'goose_loose';
   challengeBadge?: string;

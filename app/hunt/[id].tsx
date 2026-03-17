@@ -376,7 +376,11 @@ export default function HuntScreen() {
         location: hunt.location,
         prompt: hunt.prompt,
         difficulty: hunt.difficulty,
-        existingItemNames: hunt.items.filter((candidate) => candidate.id !== item.id).map((candidate) => candidate.name),
+        existingItemNames: [
+          ...hunt.items.filter((candidate) => candidate.id !== item.id).map((candidate) => candidate.name),
+          ...(hunt.swappedItemNames ?? []),
+        ],
+        huntCoords: hunt.coords,
       });
       await replaceItem(hunt.id, item.id, newItem);
     } catch (e: any) {
@@ -427,7 +431,11 @@ export default function HuntScreen() {
           location: hunt!.location,
           prompt: hunt!.prompt,
           difficulty: hunt!.difficulty,
-          existingItemNames: hunt!.items.filter((i) => i.id !== item.id).map((i) => i.name),
+          existingItemNames: [
+            ...hunt!.items.filter((i) => i.id !== item.id).map((i) => i.name),
+            ...(hunt!.swappedItemNames ?? []),
+          ],
+          huntCoords: hunt!.coords,
           customPrompt,
         });
         await replaceItem(hunt!.id, item.id, newItem);
@@ -444,9 +452,13 @@ export default function HuntScreen() {
           location: hunt!.location,
           prompt: hunt!.prompt,
           difficulty: hunt!.difficulty,
-          existingItemNames: hunt!.items.map((i) => i.name),
+          existingItemNames: [
+            ...hunt!.items.map((i) => i.name),
+            ...(hunt!.swappedItemNames ?? []),
+          ],
           beforeStop: afterItem.sublocation ?? afterItem.name,
           afterStop: beforeItem.sublocation ?? beforeItem.name,
+          huntCoords: hunt!.coords,
           customPrompt,
         });
         await insertItemAfter(hunt!.id, afterItem.id, newItem);

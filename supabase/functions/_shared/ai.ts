@@ -126,10 +126,12 @@ export async function requestValidatedJson<T>(args: {
   let messages = request.messages;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const response = await client.chat.completions.create({
-      ...request,
-      messages,
-    });
+    const response = await Promise.race([
+      client.chat.completions.create({ ...request, messages }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('OpenAI request timed out after 25s')), 25000)
+      ),
+    ]);
     const text = response.choices?.[0]?.message?.content ?? '{}';
 
     try {

@@ -104,10 +104,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { hunts, saveHunt } = get();
     const hunt = hunts.find((h) => h.id === huntId);
     if (!hunt) return;
+    const oldItem = hunt.items.find((i) => i.id === itemId);
     const updatedItems = hunt.items.map((i) => (i.id === itemId ? newItem : i));
+    const swappedItemNames = [...(hunt.swappedItemNames ?? [])];
+    if (oldItem) swappedItemNames.push(oldItem.name);
     await saveHunt({
       ...hunt,
       items: updatedItems,
+      swappedItemNames,
       totalPoints: updatedItems.reduce((sum, i) => sum + i.points, 0),
       earnedPoints: earnedPointsFor(updatedItems),
     });
