@@ -7,7 +7,6 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  ActionSheetIOS,
   ActivityIndicator,
   Modal,
   ScrollView,
@@ -22,6 +21,8 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
+import { Toast } from '@/components/Toast';
 
 import * as Location from 'expo-location';
 import { HuntItem, Coords } from '@/lib/types';
@@ -96,6 +97,7 @@ export default function HuntScreen() {
   const [isScoutLoading, setIsScoutLoading] = useState(false);
   const [isScoutTightening, setIsScoutTightening] = useState(false);
   const [scoutRerollingId, setScoutRerollingId] = useState<string | null>(null);
+  const [menuSheetItem, setMenuSheetItem] = useState<HuntItem | null>(null);
 
   // Arrival detection + live distance
   const [nearbyItemId, setNearbyItemId] = useState<string | null>(null);
@@ -219,34 +221,18 @@ export default function HuntScreen() {
   };
 
   const handleMenuPress = (item: HuntItem) => {
-    const hasLocation = !!(item.sublocation || item.geocodeQuery);
-    const options = [
-      ...(hasLocation ? ['Get Directions'] : []),
-      'Swap Stop',
-      'Remove Stop',
-      'Cancel',
-    ];
-    const cancelIndex = options.length - 1;
-    const destructiveIndex = options.indexOf('Remove Stop');
-
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
-        (i) => {
-          if (options[i] === 'Get Directions') handleNavigate(item);
-          else if (options[i] === 'Swap Stop') handleSwap(item);
-          else if (options[i] === 'Remove Stop') handleDeleteItem(item);
-        },
-      );
-    } else {
-      Alert.alert('Stop Options', undefined, [
-        ...(hasLocation ? [{ text: 'Get Directions', onPress: () => handleNavigate(item) }] : []),
-        { text: 'Swap Stop', onPress: () => handleSwap(item) },
-        { text: 'Remove Stop', style: 'destructive' as const, onPress: () => handleDeleteItem(item) },
-        { text: 'Cancel', style: 'cancel' as const },
-      ], { cancelable: true });
-    }
+    setMenuSheetItem(item);
   };
+
+  const menuSheetOptions: ActionSheetOption[] = menuSheetItem ? [
+    ...((menuSheetItem.sublocation || menuSheetItem.geocodeQuery) ? [{
+      label: 'Get Directions',
+      icon: 'map-o',
+      onPress: () => handleNavigate(menuSheetItem),
+    }] : []),
+    { label: 'Swap Stop', icon: 'exchange', onPress: () => handleSwap(menuSheetItem) },
+    { label: 'Remove Stop', icon: 'trash', onPress: () => handleDeleteItem(menuSheetItem), destructive: true },
+  ] : [];
 
   const handleTuneHunt = async () => {
     const feedback = tuneFeedback.trim();
@@ -272,6 +258,7 @@ export default function HuntScreen() {
       });
       await replaceIncompleteItems(hunt!.id, newItems);
       setTuneFeedback('');
+      Toast.show('Hunt tuned!', 'success');
     } catch (e: any) {
       Alert.alert('Tune Failed', e.message ?? 'Something went wrong.');
     } finally {
@@ -306,6 +293,7 @@ export default function HuntScreen() {
     try {
       const { code } = await publishHunt(hunt!);
       await saveHunt({ ...hunt!, publishedCode: code });
+      Toast.show('Published to library!', 'success');
       setPublishModalVisible(true);
     } catch (e: any) {
       Alert.alert('Publish Failed', e.message ?? 'Could not publish to library.');
@@ -439,6 +427,7 @@ export default function HuntScreen() {
           customPrompt,
         });
         await replaceItem(hunt!.id, item.id, newItem);
+        Toast.show('Stop swapped!', 'success');
       } catch (e: any) {
         Alert.alert('Swap Failed', e.message ?? 'Something went wrong.');
       } finally {
@@ -1119,6 +1108,13 @@ export default function HuntScreen() {
           </View>
         </View>
       </Modal>
+
+      <ActionSheet
+        visible={!!menuSheetItem}
+        title={menuSheetItem?.name}
+        options={menuSheetOptions}
+        onClose={() => setMenuSheetItem(null)}
+      />
     </View>
   );
 }

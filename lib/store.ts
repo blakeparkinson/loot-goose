@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Hunt, HuntItem, Coords } from './types';
 import { enrichHuntMetadata } from './huntInsights';
+import { ThemeMode } from '@/constants/Colors';
 
 const HUNTS_KEY = 'lootgoose_hunts';
+const THEME_KEY = 'lootgoose_theme';
 
 function earnedPointsFor(items: HuntItem[]): number {
   return items.filter((i) => i.completed).reduce((sum, i) => sum + i.points, 0);
@@ -11,6 +13,8 @@ function earnedPointsFor(items: HuntItem[]): number {
 
 interface AppStore {
   hunts: Hunt[];
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
   loadHunts: () => Promise<void>;
   saveHunt: (hunt: Hunt) => Promise<void>;
   deleteHunt: (huntId: string) => Promise<void>;
@@ -25,13 +29,29 @@ interface AppStore {
 
 export const useAppStore = create<AppStore>((set, get) => ({
   hunts: [],
+  themeMode: 'system' as ThemeMode,
+
+  setThemeMode: async (mode: ThemeMode) => {
+    set({ themeMode: mode });
+    try {
+      await AsyncStorage.setItem(THEME_KEY, mode);
+    } catch (e) {
+      console.error('Failed to persist theme:', e);
+    }
+  },
 
   loadHunts: async () => {
     try {
-      const raw = await AsyncStorage.getItem(HUNTS_KEY);
+      const [raw, savedTheme] = await Promise.all([
+        AsyncStorage.getItem(HUNTS_KEY),
+        AsyncStorage.getItem(THEME_KEY),
+      ]);
       if (raw) {
         const hunts = (JSON.parse(raw) as Hunt[]).map((hunt) => enrichHuntMetadata(hunt));
         set({ hunts });
+      }
+      if (savedTheme && ['system', 'light', 'dark'].includes(savedTheme)) {
+        set({ themeMode: savedTheme as ThemeMode });
       }
     } catch (e) {
       console.error('Failed to load hunts:', e);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  ActionSheetIOS,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -15,7 +14,9 @@ import {
   Animated,
   Easing,
   Image,
+  RefreshControl,
 } from 'react-native';
+import ReAnimated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -23,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
+import { useTheme } from '@/lib/useTheme';
 import { Hunt, QuickPreset } from '@/lib/types';
 import { reverseGeocode } from '@/lib/geocoding';
 import {
@@ -38,6 +40,9 @@ import {
 } from '@/lib/api';
 import { randomPlayerName } from '@/app/hunt/coop/[code]';
 import { fetchWeather } from '@/lib/weather';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
+import { Toast } from '@/components/Toast';
+import { ChallengeCardSkeleton, FeaturedStripSkeleton } from '@/components/Skeleton';
 
 type FilterKey = 'all' | 'active' | 'done';
 
@@ -140,6 +145,8 @@ export default function HomeScreen() {
   const hunts = useAppStore((s) => s.hunts);
   const saveHunt = useAppStore((s) => s.saveHunt);
   const deleteHunt = useAppStore((s) => s.deleteHunt);
+  const loadHunts = useAppStore((s) => s.loadHunts);
+  const C = useTheme();
 
   useEffect(() => {
     navigation.setOptions({
@@ -164,25 +171,15 @@ export default function HomeScreen() {
   const [weeklyChallenge, setWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
   const [featuredHunts, setFeaturedHunts] = useState<LibraryHunt[]>([]);
   const [isLoadingHighlights, setIsLoadingHighlights] = useState(true);
+  const [moreSheetVisible, setMoreSheetVisible] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleMore = () => {
-    const options = ['Browse Library', 'Join a Hunt', 'Cancel'];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: 2 },
-        (i) => {
-          if (i === 0) router.push('/library');
-          else if (i === 1) { setJoinCode(''); setJoinModalVisible(true); }
-        },
-      );
-    } else {
-      Alert.alert('More', undefined, [
-        { text: 'Browse Library', onPress: () => router.push('/library') },
-        { text: 'Join a Hunt', onPress: () => { setJoinCode(''); setJoinModalVisible(true); } },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
-  };
+  const moreSheetOptions: ActionSheetOption[] = [
+    { label: 'Browse Library', icon: 'book', onPress: () => router.push('/library') },
+    { label: 'Join a Hunt', icon: 'users', onPress: () => { setJoinCode(''); setJoinModalVisible(true); } },
+  ];
+
+  const handleMore = () => setMoreSheetVisible(true);
 
   const handleDelete = (hunt: Hunt) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -192,23 +189,30 @@ export default function HomeScreen() {
     ]);
   };
 
+  const loadHighlights = useCallback(async () => {
+    try {
+      const [highlights, fallbackFeatured] = await Promise.all([
+        loadLibraryHighlights().catch(() => ({ weeklyChallenge: null, featured: [] })),
+        browseHunts('').catch(() => [] as LibraryHunt[]),
+      ]);
+      setWeeklyChallenge(highlights.weeklyChallenge);
+      setFeaturedHunts(highlights.featured.length > 0 ? highlights.featured.slice(0, 5) : fallbackFeatured.slice(0, 5));
+    } finally {
+      setIsLoadingHighlights(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const [highlights, fallbackFeatured] = await Promise.all([
-          loadLibraryHighlights().catch(() => ({ weeklyChallenge: null, featured: [] })),
-          browseHunts('').catch(() => [] as LibraryHunt[]),
-        ]);
-        if (cancelled) return;
-        setWeeklyChallenge(highlights.weeklyChallenge);
-        setFeaturedHunts(highlights.featured.length > 0 ? highlights.featured.slice(0, 5) : fallbackFeatured.slice(0, 5));
-      } finally {
-        if (!cancelled) setIsLoadingHighlights(false);
-      }
-    })();
+    loadHighlights().then(() => { if (cancelled) return; });
     return () => { cancelled = true; };
-  }, []);
+  }, [loadHighlights]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([loadHunts(), loadHighlights()]);
+    setIsRefreshing(false);
+  }, [loadHunts, loadHighlights]);
 
   const openPresetInCreate = (preset: QuickPreset, badge?: string) => {
     router.push({
@@ -358,17 +362,20 @@ export default function HomeScreen() {
     return list;
   }, [hunts, filter, searchQuery]);
 
-  const renderHunt = ({ item }: { item: Hunt }) => {
+  const renderHunt = ({ item, index }: { item: Hunt; index: number }) => {
     const pct = completionPct(item);
     const done = pct === 100;
     const diffColor = DIFFICULTY_COLOR[item.difficulty];
 
     return (
+      <ReAnimated.View entering={FadeInDown.delay(index * 60).duration(350)}>
       <TouchableOpacity
         style={[styles.card, { borderColor: done ? Colors.green : Colors.border }]}
         onPress={() => router.push(`/hunt/${item.id}`)}
         onLongPress={() => handleDelete(item)}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}, ${pct}% complete, ${item.location}`}
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
@@ -402,6 +409,7 @@ export default function HomeScreen() {
           </Text>
         </View>
       </TouchableOpacity>
+      </ReAnimated.View>
     );
   };
 
@@ -418,6 +426,9 @@ export default function HomeScreen() {
               setFilter(f.key);
             }}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter: ${f.label}`}
+            accessibilityState={{ selected: filter === f.key }}
           >
             <Text style={[styles.filterPillText, filter === f.key && styles.filterPillTextActive]}>
               {f.label}
@@ -450,7 +461,8 @@ export default function HomeScreen() {
     <View style={styles.discoveryHeader}>
       {isLoadingHighlights ? (
         <View style={styles.discoveryLoading}>
-          <ActivityIndicator size="small" color={Colors.textMuted} />
+          <ChallengeCardSkeleton />
+          <FeaturedStripSkeleton />
         </View>
       ) : weeklyChallenge ? (
         <TouchableOpacity
@@ -527,10 +539,10 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
       <View style={{ flex: 1 }}>
       {hunts.length > 0 && (
-        <View style={styles.searchBar}>
+        <View style={[styles.searchBar, { backgroundColor: C.card, borderColor: C.border }]}>
           <FontAwesome name="search" size={14} color={Colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
@@ -541,6 +553,7 @@ export default function HomeScreen() {
             autoCorrect={false}
             clearButtonMode="while-editing"
             returnKeyType="search"
+            accessibilityLabel="Search hunts"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -557,22 +570,32 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View>
             <DiscoveryHeader />
-            {hunts.length > 0 ? Toolbar : null}
+            {hunts.length > 0 ? <Toolbar /> : null}
           </View>
         }
         ListEmptyComponent={hunts.length === 0 ? EmptyState : EmptyFiltered}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={C.gold}
+            colors={[C.gold]}
+          />
+        }
       />
 
       </View>
       {/* Bottom bar — not floating, list ends here */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 8, borderTopColor: C.border, backgroundColor: C.bg }]}>
         <TouchableOpacity
           style={[styles.gooseLooseBtn, gooseLooseLoading && { opacity: 0.7 }]}
           onPress={handleGooseLoose}
           disabled={gooseLooseLoading}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Goose Loose — generate a surprise hunt"
         >
           {gooseLooseLoading ? (
             <>
@@ -594,6 +617,8 @@ export default function HomeScreen() {
             router.push('/create');
           }}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Create new hunt"
         >
           <FontAwesome name="plus" size={18} color="#000" />
           <Text style={styles.fabText}>New Hunt</Text>
@@ -603,10 +628,18 @@ export default function HomeScreen() {
           style={styles.moreBtn}
           onPress={handleMore}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="More options"
         >
           <FontAwesome name="ellipsis-h" size={18} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      <ActionSheet
+        visible={moreSheetVisible}
+        options={moreSheetOptions}
+        onClose={() => setMoreSheetVisible(false)}
+      />
 
       {/* Join Hunt modal */}
       <Modal

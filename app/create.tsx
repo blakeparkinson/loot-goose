@@ -252,6 +252,7 @@ export default function CreateScreen() {
               onChangeText={setLocation}
               returnKeyType="next"
               editable={!isGenerating}
+              accessibilityLabel="Location"
             />
             {isLocating && <ActivityIndicator style={styles.locationSpinner} size="small" color={Colors.textMuted} />}
           </View>
@@ -311,6 +312,7 @@ export default function CreateScreen() {
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            accessibilityLabel="Hunt theme"
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestions}>
             {PROMPT_SUGGESTIONS.map((s) => {
@@ -388,6 +390,8 @@ export default function CreateScreen() {
           onPress={handleGenerate}
           disabled={!canGenerate || isGenerating}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={isGenerating ? loadingMsg : 'Generate Hunt'}
         >
           {isGenerating ? (
             <>
@@ -401,6 +405,16 @@ export default function CreateScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {!canGenerate && (
+          <Text style={styles.generateHint}>
+            {location.trim().length <= 2 && prompt.trim().length <= 2
+              ? 'Enter a location and theme to generate a hunt.'
+              : location.trim().length <= 2
+              ? 'Add a location to continue.'
+              : 'Add a theme to continue.'}
+          </Text>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -526,4 +540,10 @@ const styles = StyleSheet.create({
   generateBtnDisabled: { opacity: 0.4 },
   generateBtnIcon: { width: 26, height: 26, borderRadius: 7 },
   generateBtnText: { fontSize: 17, fontWeight: '800', color: '#000' },
+  generateHint: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 10,
+  },
 });

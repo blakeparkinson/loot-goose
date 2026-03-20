@@ -129,8 +129,17 @@ export default function CameraScreen() {
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
+        <TouchableOpacity
+          style={{ position: 'absolute', top: insets.top + 12, left: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <FontAwesome name="chevron-left" size={14} color={Colors.text} />
+          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>Back</Text>
+        </TouchableOpacity>
         <Text style={styles.permText}>Camera access is needed to capture hunt items.</Text>
-        <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
+        <TouchableOpacity style={styles.permBtn} onPress={requestPermission} accessibilityRole="button" accessibilityLabel="Grant camera access">
           <Text style={styles.permBtnText}>Grant Access</Text>
         </TouchableOpacity>
       </View>
@@ -297,7 +306,7 @@ export default function CameraScreen() {
             </View>
           )}
 
-          <View style={styles.captureRow}>
+          <View style={[styles.captureRow, { bottom: insets.bottom + 24 }]}>
             {isCapturing ? (
               <View style={styles.captureBtnOuter}>
                 <ActivityIndicator color={Colors.gold} size="large" />
@@ -365,7 +374,7 @@ const styles = StyleSheet.create({
 
   captureRow: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 60 : 40,
+    bottom: 24,
     left: 0,
     right: 0,
     alignItems: 'center',

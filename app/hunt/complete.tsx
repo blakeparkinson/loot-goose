@@ -17,6 +17,7 @@ const GOOSE_IMAGE = require('@/assets/icon.png');
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
@@ -42,6 +43,7 @@ function formatDuration(ms: number): string {
 export default function HuntCompleteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const hunt = useAppStore((s) => s.hunts.find((h) => h.id === id));
   const saveHunt = useAppStore((s) => s.saveHunt);
 
@@ -385,7 +387,7 @@ export default function HuntCompleteScreen() {
       </ScrollView>
 
       {/* Bottom actions */}
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={[styles.shareBtn, isSaving && { opacity: 0.6 }]}
           onPress={handleSaveShare}
@@ -706,7 +708,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
-    paddingBottom: 36,
     backgroundColor: Colors.bg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

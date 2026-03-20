@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
+import { useTheme } from '@/lib/useTheme';
 import { Hunt, HuntDifficulty, QuickPreset } from '@/lib/types';
 import {
   browseHunts,
@@ -22,6 +25,8 @@ import {
   loadLibraryHunt,
   WeeklyChallenge,
 } from '@/lib/api';
+import { Toast } from '@/components/Toast';
+import { HuntCardSkeleton } from '@/components/Skeleton';
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: Colors.green,
@@ -32,6 +37,8 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 export default function LibraryScreen() {
   const router = useRouter();
   const saveHunt = useAppStore((s) => s.saveHunt);
+  const C = useTheme();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LibraryHunt[]>([]);
@@ -131,9 +138,10 @@ export default function LibraryScreen() {
       const huntData: Hunt = huntCache[item.code] ?? (await loadLibraryHunt(item.code));
       const newHunt: Hunt = clonePlayableHunt(huntData, 'library');
       await saveHunt(newHunt);
+      Toast.show('Hunt added!', 'success');
       router.push(`/hunt/${newHunt.id}`);
-    } catch {
-      // On error just stop loading — user can try again
+    } catch (e: any) {
+      Alert.alert('Could not load hunt', e.message ?? 'Please try again.');
     } finally {
       setLoadingCode(null);
     }
@@ -169,6 +177,8 @@ export default function LibraryScreen() {
         style={[styles.card, isExpanded && styles.cardExpanded]}
         onPress={() => handleToggleExpand(item)}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}, ${item.difficulty}, ${item.itemCount} stops`}
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
@@ -330,8 +340,8 @@ export default function LibraryScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchBar}>
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
+      <View style={[styles.searchBar, { backgroundColor: C.card, borderColor: C.border }]}>
         <FontAwesome name="search" size={14} color={Colors.textMuted} />
         <TextInput
           style={styles.searchInput}
@@ -342,6 +352,7 @@ export default function LibraryScreen() {
           autoCorrect={false}
           clearButtonMode="while-editing"
           returnKeyType="search"
+          accessibilityLabel="Search library hunts"
         />
         {loading && <ActivityIndicator size="small" color={Colors.textMuted} />}
       </View>
@@ -353,6 +364,9 @@ export default function LibraryScreen() {
             style={[styles.filterChip, difficultyFilter === level && styles.filterChipActive]}
             onPress={() => setDifficultyFilter(level)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Difficulty: ${level === 'all' ? 'All levels' : level}`}
+            accessibilityState={{ selected: difficultyFilter === level }}
           >
             <Text style={[styles.filterChipText, difficultyFilter === level && styles.filterChipTextActive]}>
               {level === 'all' ? 'All levels' : level}
@@ -384,8 +398,10 @@ export default function LibraryScreen() {
       )}
 
       {loading && displayedResults.length === 0 ? (
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={Colors.gold} />
+        <View style={styles.list}>
+          {[0, 1, 2, 3].map((i) => (
+            <HuntCardSkeleton key={i} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -397,6 +413,18 @@ export default function LibraryScreen() {
           ListEmptyComponent={EmptyState}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={async () => {
+                setIsRefreshing(true);
+                await fetchResults(query);
+                setIsRefreshing(false);
+              }}
+              tintColor={C.gold}
+              colors={[C.gold]}
+            />
+          }
         />
       )}
     </View>
