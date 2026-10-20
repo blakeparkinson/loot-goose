@@ -39,16 +39,19 @@ export default {
           apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY,
         },
       },
+      // Camera for photo verification, location for nearby hunts and arrival checks.
+      // expo-media-library adds what it needs to save recap cards (legacy storage
+      // only matters on Android 9 and below). Nothing records audio or reads photo EXIF.
       permissions: [
-        'CAMERA',
-        'ACCESS_FINE_LOCATION',
-        'ACCESS_COARSE_LOCATION',
-        'READ_EXTERNAL_STORAGE',
-        'WRITE_EXTERNAL_STORAGE',
         'android.permission.CAMERA',
-        'android.permission.RECORD_AUDIO',
         'android.permission.ACCESS_COARSE_LOCATION',
         'android.permission.ACCESS_FINE_LOCATION',
+      ],
+      blockedPermissions: [
+        'android.permission.RECORD_AUDIO',
+        'android.permission.ACCESS_MEDIA_LOCATION',
+        'android.permission.READ_MEDIA_VIDEO',
+        'android.permission.READ_MEDIA_AUDIO',
       ],
       edgeToEdgeEnabled: true,
     },
@@ -72,7 +75,8 @@ export default {
         {
           photosPermission: 'Loot Goose needs photo library access to save hunt recap cards.',
           savePhotosPermission: 'Loot Goose needs permission to save photos to your library.',
-          isAccessMediaLocationEnabled: true,
+          isAccessMediaLocationEnabled: false,
+          granularPermissions: ['photo'],
         },
       ],
     ],

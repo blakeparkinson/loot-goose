@@ -135,8 +135,8 @@ export default function HuntCompleteScreen() {
       // Capture the static off-screen card (not the animated live screen)
       const uri = await captureRef(cardRef, { format: 'jpg', quality: 0.95 });
 
-      // Save to photo library
-      const { status } = await MediaLibrary.requestPermissionsAsync();
+      // Save to photo library (add-only access; we never read the library)
+      const { status } = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
       if (status === 'granted') {
         await MediaLibrary.saveToLibraryAsync(uri);
       }

@@ -24,7 +24,8 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
-import { verifyPhoto, completeCoopItem, uploadHuntPhoto } from '@/lib/api';
+import { verifyPhoto, completeCoopItem } from '@/lib/api';
+import { persistHuntPhoto } from '@/lib/photos';
 
 const ReanimatedCamera = Animated.createAnimatedComponent(Camera);
 
@@ -194,12 +195,7 @@ export default function CameraScreen() {
             }
           }
         } else {
-          let persistentUri = photoUri;
-          try {
-            persistentUri = await uploadHuntPhoto(imageBase64, huntId, itemId);
-          } catch {
-            // Upload failed (offline, etc.) — fall back to local URI
-          }
+          const persistentUri = persistHuntPhoto(photoUri, huntId, itemId);
           const isLastItem = hunt!.items.filter((i) => !i.completed && i.id !== itemId).length === 0;
           await completeItem(huntId, itemId, persistentUri, verification.message);
           if (isLastItem) {

@@ -4,29 +4,6 @@ import { enrichHuntMetadata, estimateStopConfidence } from './huntInsights';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-/**
- * Upload a hunt photo to Supabase Storage and return the public URL.
- * Falls back to the local URI if the upload fails (offline, etc.).
- */
-export async function uploadHuntPhoto(base64: string, huntId: string, itemId: string): Promise<string> {
-  try {
-    const path = `${huntId}/${itemId}-${Date.now()}.jpg`;
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/hunt-photos/${path}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'image/jpeg',
-      },
-      body: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
-    });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    return `${SUPABASE_URL}/storage/v1/object/public/hunt-photos/${path}`;
-  } catch (e) {
-    if (__DEV__) console.warn('[uploadHuntPhoto] failed, using local URI', e);
-    throw e;
-  }
-}
-
 const POINT_RANGE: Record<HuntDifficulty, [number, number]> = {
   easy: [10, 20],
   medium: [15, 40],
@@ -214,6 +191,12 @@ export async function tuneHunt(params: {
   return (data.items as any[]).map((item, i) => toClientItem(item, `item-${Date.now()}-tune-${i}`));
 }
 
+/** Short-lived signed URLs for photos older builds uploaded, so they can be copied onto the device. */
+export async function signLegacyPhotos(paths: string[]): Promise<Record<string, string | null>> {
+  const data = await callEdgeFunction('hunt-photo-url', { paths }, 15000);
+  return data.urls ?? {};
+}
+
 // --- Co-op ---
 
 export interface CoopCompletion {
@@ -232,8 +215,47 @@ export interface CoopSessionInfo {
   playerName: string;
 }
 
+/**
+ * The parts of a hunt that may leave the device when it is published, shared or
+ * played co-op: no photos, no notes on them, no completion times, and no hunt
+ * centre point (for Goose Loose that is the player's GPS fix). Stops keep their
+ * geocoded coordinates so the map works. The server applies the same whitelist;
+ * keep in sync with supabase/functions/_shared/shareableHunt.ts.
+ */
+export function toShareableHunt(hunt: Hunt) {
+  return {
+    id: hunt.id,
+    title: hunt.title,
+    location: hunt.location,
+    prompt: hunt.prompt,
+    difficulty: hunt.difficulty,
+    totalPoints: hunt.totalPoints,
+    earnedPoints: hunt.earnedPoints,
+    createdAt: hunt.createdAt,
+    tags: hunt.tags,
+    swappedItemNames: hunt.swappedItemNames,
+    routeMetrics: hunt.routeMetrics,
+    source: hunt.source,
+    challengeBadge: hunt.challengeBadge,
+    items: hunt.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      hint: item.hint,
+      lore: item.lore,
+      points: item.points,
+      completed: item.completed,
+      sublocation: item.sublocation,
+      geocodeQuery: item.geocodeQuery,
+      coords: item.coords,
+      aiConfidence: item.aiConfidence,
+      confidenceNote: item.confidenceNote,
+    })),
+  };
+}
+
 export async function createCoopSession(huntData: Hunt, playerName: string): Promise<{ code: string; playerName: string }> {
-  return callEdgeFunction('create-coop-session', { huntData, playerName }, 15000);
+  return callEdgeFunction('create-coop-session', { huntData: toShareableHunt(huntData), playerName }, 15000);
 }
 
 export async function joinCoopSession(code: string, playerName: string): Promise<CoopSessionInfo> {
@@ -321,7 +343,7 @@ export interface LibraryHighlights {
 }
 
 export async function publishHunt(hunt: Hunt): Promise<{ code: string }> {
-  return callEdgeFunction('publish-hunt', { huntData: hunt }, 15000);
+  return callEdgeFunction('publish-hunt', { huntData: toShareableHunt(hunt) }, 15000);
 }
 
 export async function browseHunts(query: string): Promise<LibraryHunt[]> {

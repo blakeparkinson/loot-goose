@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Hunt, HuntItem, Coords } from './types';
 import { enrichHuntMetadata } from './huntInsights';
+import { signLegacyPhotos } from './api';
+import { deleteHuntPhotos, downloadLegacyPhoto, legacyPhotoPath } from './photos';
 import { ThemeMode } from '@/constants/Colors';
 
 const HUNTS_KEY = 'lootgoose_hunts';
@@ -16,6 +18,7 @@ interface AppStore {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   loadHunts: () => Promise<void>;
+  migrateLegacyPhotos: () => Promise<void>;
   saveHunt: (hunt: Hunt) => Promise<void>;
   deleteHunt: (huntId: string) => Promise<void>;
   completeItem: (huntId: string, itemId: string, photoUri: string, verificationNote: string) => Promise<void>;
@@ -73,8 +76,52 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  // Copy photos that older builds uploaded to the (now private) bucket onto the device.
+  // Best effort: anything that fails is retried on the next launch.
+  migrateLegacyPhotos: async () => {
+    const paths = [...new Set(
+      get().hunts.flatMap((h) => h.items.map((i) => legacyPhotoPath(i.photoUri)).filter((p): p is string => !!p)),
+    )];
+    if (paths.length === 0) return;
+
+    const localByPath = new Map<string, string>();
+    for (let i = 0; i < paths.length; i += 20) {
+      const batch = paths.slice(i, i + 20);
+      let urls: Record<string, string | null>;
+      try {
+        urls = await signLegacyPhotos(batch);
+      } catch (e) {
+        if (__DEV__) console.warn('[migrateLegacyPhotos] signing failed', e);
+        break;
+      }
+      for (const path of batch) {
+        const url = urls[path];
+        if (!url) continue;
+        const localUri = await downloadLegacyPhoto(url, path);
+        if (localUri) localByPath.set(path, localUri);
+      }
+    }
+    if (localByPath.size === 0) return;
+
+    const updated = get().hunts.map((h) => ({
+      ...h,
+      items: h.items.map((item) => {
+        const path = legacyPhotoPath(item.photoUri);
+        return path && localByPath.has(path) ? { ...item, photoUri: localByPath.get(path) } : item;
+      }),
+    }));
+    set({ hunts: updated });
+    try {
+      await AsyncStorage.setItem(HUNTS_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to persist migrated photos:', e);
+    }
+  },
+
   deleteHunt: async (huntId: string) => {
     const { hunts } = get();
+    const removed = hunts.find((h) => h.id === huntId);
+    if (removed) deleteHuntPhotos(removed);
     const updated = hunts.filter((h) => h.id !== huntId);
     set({ hunts: updated });
     try {

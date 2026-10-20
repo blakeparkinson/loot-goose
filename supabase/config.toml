@@ -1,0 +1,49 @@
+# Edge function settings for `supabase functions deploy`. Every function requires a
+# valid JWT (the app sends the anon key as its bearer token), so requests without
+# one are rejected by the platform before our code runs.
+project_id = "loot-goose"
+
+[functions.browse-hunts]
+verify_jwt = true
+
+[functions.complete-coop-item]
+verify_jwt = true
+
+[functions.create-coop-session]
+verify_jwt = true
+
+[functions.generate-hunt]
+verify_jwt = true
+
+[functions.hunt-photo-url]
+verify_jwt = true
+
+[functions.insert-item]
+verify_jwt = true
+
+[functions.join-coop-session]
+verify_jwt = true
+
+[functions.library-highlights]
+verify_jwt = true
+
+[functions.load-hunt]
+verify_jwt = true
+
+[functions.load-library-hunt]
+verify_jwt = true
+
+[functions.publish-hunt]
+verify_jwt = true
+
+[functions.share-hunt]
+verify_jwt = true
+
+[functions.swap-item]
+verify_jwt = true
+
+[functions.tune-hunt]
+verify_jwt = true
+
+[functions.verify-item]
+verify_jwt = true

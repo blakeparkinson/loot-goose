@@ -7,13 +7,9 @@ import {
   requestValidatedJson,
 } from '../_shared/ai.ts';
 import { geocode, haversineKm } from '../_shared/geocode.ts';
+import { guardRequest } from '../_shared/http.ts';
 
 const client = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 
 async function optimizeRouteOrder<T extends { coords: { lat: number; lon: number } | null }>(
@@ -114,7 +110,8 @@ function sortByWalkingOrderFallback<T extends { coords: { lat: number; lon: numb
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const { corsHeaders, early } = await guardRequest(req, { rateLimit: { name: 'generate-hunt', limit: 30 } });
+  if (early) return early;
 
   try {
     const { location, routeArea, prompt, count, minPts, maxPts, weather } = await req.json();
