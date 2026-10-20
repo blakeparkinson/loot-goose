@@ -4,16 +4,13 @@ import {
   quoteTextBlock,
   requestValidatedJson,
 } from '../_shared/ai.ts';
+import { guardRequest } from '../_shared/http.ts';
 
 const client = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const { corsHeaders, early } = await guardRequest(req, { rateLimit: { name: 'verify-item', limit: 150 } });
+  if (early) return early;
 
   try {
     const { imageBase64, itemName, itemDescription, location } = await req.json();

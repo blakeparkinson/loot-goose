@@ -7,13 +7,9 @@ import {
   type StopDraft,
 } from '../_shared/ai.ts';
 import { geocode } from '../_shared/geocode.ts';
+import { guardRequest } from '../_shared/http.ts';
 
 const client = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') });
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 function buildMessages(location: string, prompt: string, customPrompt: string | undefined, existingItemNames: string[], beforeStop: string, afterStop: string, minPts: number, maxPts: number, extraInstruction?: string) {
   return [
@@ -60,7 +56,8 @@ Return JSON in exactly this shape:
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const { corsHeaders, early } = await guardRequest(req, { rateLimit: { name: 'insert-item', limit: 60 } });
+  if (early) return early;
 
   try {
     const { location, prompt, minPts, maxPts, existingItemNames, beforeStop, afterStop, customPrompt, huntCoords } = await req.json();

@@ -15,11 +15,13 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const loadHunts = useAppStore((s) => s.loadHunts);
+  const migrateLegacyPhotos = useAppStore((s) => s.migrateLegacyPhotos);
 
   useEffect(() => {
     const prepare = async () => {
       try {
         await loadHunts();
+        migrateLegacyPhotos();
         await SplashScreen.hideAsync();
       } finally {
         setAppReady(true);
