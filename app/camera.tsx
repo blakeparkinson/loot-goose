@@ -227,7 +227,13 @@ export default function CameraScreen() {
 
   const topBar = (
     <View style={[styles.topOverlay, { paddingTop: insets.top + 12 }]}>
-      <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.closeBtn}
+        onPress={() => router.back()}
+        hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+        accessibilityRole="button"
+        accessibilityLabel="Close camera"
+      >
         <FontAwesome name="times" size={20} color="#fff" />
       </TouchableOpacity>
       <View style={styles.itemBadge}>
@@ -308,7 +314,13 @@ export default function CameraScreen() {
                 <ActivityIndicator color={Colors.gold} size="large" />
               </View>
             ) : (
-              <TouchableOpacity style={styles.captureBtnOuter} onPress={handleCapture} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.captureBtnOuter}
+                onPress={handleCapture}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Take photo"
+              >
                 <View style={styles.captureBtnInner} />
               </TouchableOpacity>
             )}

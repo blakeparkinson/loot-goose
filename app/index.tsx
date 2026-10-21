@@ -151,7 +151,13 @@ export default function HomeScreen() {
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={() => router.push('/profile')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 4 }}>
+        <TouchableOpacity
+          onPress={() => router.push('/profile')}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={{ marginRight: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="My stats"
+        >
           <FontAwesome name="trophy" size={20} color={Colors.gold} />
         </TouchableOpacity>
       ),
@@ -556,7 +562,12 @@ export default function HomeScreen() {
             accessibilityLabel="Search hunts"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <FontAwesome name="times-circle" size={15} color={Colors.textMuted} />
             </TouchableOpacity>
           )}

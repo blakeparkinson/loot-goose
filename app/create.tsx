@@ -168,7 +168,10 @@ export default function CreateScreen() {
     }
   };
 
-  const canGenerate = location.trim().length > 2 && prompt.trim().length > 2;
+  // A picked theme chip counts as a theme: it's merged into the prompt in handleGenerate.
+  const hasLocation = location.trim().length > 2;
+  const hasTheme = prompt.trim().length > 2 || selectedSuggestions.length > 0;
+  const canGenerate = hasLocation && hasTheme;
 
   const adjustStops = (delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -343,6 +346,9 @@ export default function CreateScreen() {
               style={[styles.stepperBtn, stopCount <= MIN_STOPS && styles.stepperBtnDisabled]}
               onPress={() => adjustStops(-1)}
               disabled={stopCount <= MIN_STOPS}
+              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+              accessibilityRole="button"
+              accessibilityLabel="Fewer stops"
             >
               <FontAwesome name="minus" size={16} color={stopCount <= MIN_STOPS ? Colors.textMuted : Colors.text} />
             </TouchableOpacity>
@@ -354,6 +360,9 @@ export default function CreateScreen() {
               style={[styles.stepperBtn, stopCount >= MAX_STOPS && styles.stepperBtnDisabled]}
               onPress={() => adjustStops(1)}
               disabled={stopCount >= MAX_STOPS}
+              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+              accessibilityRole="button"
+              accessibilityLabel="More stops"
             >
               <FontAwesome name="plus" size={16} color={stopCount >= MAX_STOPS ? Colors.textMuted : Colors.text} />
             </TouchableOpacity>
@@ -408,9 +417,9 @@ export default function CreateScreen() {
 
         {!canGenerate && (
           <Text style={styles.generateHint}>
-            {location.trim().length <= 2 && prompt.trim().length <= 2
+            {!hasLocation && !hasTheme
               ? 'Enter a location and theme to generate a hunt.'
-              : location.trim().length <= 2
+              : !hasLocation
               ? 'Add a location to continue.'
               : 'Add a theme to continue.'}
           </Text>
