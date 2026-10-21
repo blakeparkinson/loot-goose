@@ -319,7 +319,7 @@ export default function HuntCompleteScreen() {
               style={styles.goose}
               accessible
               accessibilityRole="image"
-              accessibilityLabel="The goose holding up a gold coin, delighted you finished the hunt"
+              accessibilityLabel="The goose holding up a photo of a find, delighted you finished the hunt"
             />
           </Animated.View>
 

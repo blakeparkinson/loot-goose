@@ -292,7 +292,7 @@ export default function CameraScreen() {
               accessibilityRole="image"
               accessibilityLabel={
                 result.success
-                  ? 'The goose holding up a gold coin, delighted with your find'
+                  ? 'The goose holding up the photo of your find, approved'
                   : 'The goose with its wings crossed, turning away from your photo'
               }
             />

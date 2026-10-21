@@ -46,7 +46,7 @@ Shipped 2026-10-21. The masters (1024 px square, on the navy badge) live in the 
 | Pose | What it shows | Where it's used |
 | --- | --- | --- |
 | HONK | Neck stretched up, bill open | The in-app splash (`GooseSplash`), under the "HONK!" bubble. Success toasts are text-only and don't show it yet. |
-| Found it | Holding up a gold coin, delighted | The camera's verified result, the hunt complete hero and the goose on the shareable recap card. |
+| Found it | Holding up the photo of the find, with a green check | The camera's verified result, the hunt complete hero and the goose on the shareable recap card. |
 | Judging | Magnifying glass over a photo | The camera's "Checking your photo…" overlay while the AI judge decides. |
 | Nope | Wings crossed, head turned away | The camera's rejected result ("Not quite..."). |
 | Searching | Peering over a map | The empty states: home ("No hunts yet"), profile ("No completed hunts yet") and the library. No error screen shows a goose yet. |

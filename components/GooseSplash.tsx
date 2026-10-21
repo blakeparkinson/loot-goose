@@ -124,8 +124,8 @@ export default function GooseSplash({ onFinished }: Props) {
       <Animated.View style={[styles.glowRingOuter, { opacity: glowPulseOuter }]} />
 
       {/* Spinning coin accents */}
-      <Animated.Text style={[styles.coin, styles.coinTL, { transform: [{ rotate: coinRotate }] }]}>🪙</Animated.Text>
-      <Animated.Text style={[styles.coin, styles.coinTR, { transform: [{ rotate: coinRotate }] }]}>🪙</Animated.Text>
+      <Animated.Text style={[styles.coin, styles.coinTL, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
+      <Animated.Text style={[styles.coin, styles.coinTR, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
       <Animated.Text style={[styles.coin, styles.coinBL, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
       <Animated.Text style={[styles.coin, styles.coinBR, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
 
