@@ -55,17 +55,20 @@ Use the goose to say something: a result, a nudge, an empty state. Don't place i
 
 ## Color
 
-| Token | Value | Use |
-| --- | --- | --- |
-| Loot gold | `#F5A623` | Primary actions, the magnifying glass, rewards. Existing dark-theme token. |
-| Deep gold | `#D4880F` | Pressed states, gold on light backgrounds. Existing light-theme token. |
-| Badge navy | `#0E2047` | The icon field, the splash and the Android icon background. |
-| Goose white | `#FFFDF7` | The bird. A warm white, not blue-white. |
-| Bill orange | `#E8611A` | Bill and legs, in illustration only. Never a UI color. |
-| Ink | `#0D1117` | Dark surfaces and the app background. |
+The palette is in code: `Brand` in `constants/Colors.ts` holds these values, and the themes build on it (`DarkTheme.gold` is loot gold, `LightTheme.gold` is deep gold, `DarkTheme.bg` is ink). Change a brand color there, not in a screen.
 
-- The dark surfaces and the functional green (verified) and red (rejected) can stay.
-- The rest of `constants/Colors.ts` is GitHub's Primer palette. Its blue and purple are not brand colors: keep them out of the art and marketing, and replace their decorative uses in the UI with gold tints.
+| Token | Value | Use | In code |
+| --- | --- | --- | --- |
+| Loot gold | `#F5A623` | Primary actions, the magnifying glass, rewards. | `Brand.lootGold`, dark `gold` |
+| Deep gold | `#D4880F` | Pressed states, gold on light backgrounds. | `Brand.deepGold`, light `gold` |
+| Badge navy | `#0E2047` | The icon field, the splash and the Android icon background. | `Brand.badgeNavy`, the in-app splash; `app.config.js` repeats it for the native splash |
+| Goose white | `#FFFDF7` | The bird. A warm white, not blue-white. | `Brand.gooseWhite` |
+| Bill orange | `#E8611A` | Bill and legs, in illustration only. Never a UI color. | Not in code, on purpose |
+| Ink | `#0D1117` | Dark surfaces and the app background. | `Brand.ink`, dark `bg` |
+
+- The dark surfaces and the functional green (verified) and red (rejected) stay.
+- The rest of `constants/Colors.ts` is GitHub's Primer palette. Its blue and purple are not brand colors: keep them out of the art and marketing. Their decorative uses in the UI are now gold tints (`gold` on `goldLight`). Blue and purple remain only where the hue carries meaning: the route line on the scout map (it has to stand out from the map's own yellow and orange roads), the info toast (blue next to green success and red error), and the profile rank tiers (each tier has its own color, gold at the top).
+- Deep gold on white is about 2.9:1, below the 4.5:1 that small text needs. In light mode, use it for fills, borders and icons, and keep small text in `text` or `textSecondary`.
 
 ## Typography
 
