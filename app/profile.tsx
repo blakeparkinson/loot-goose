@@ -71,19 +71,23 @@ export default function ProfileScreen() {
     [hunts],
   );
 
+  // Finds and points count from every hunt, in progress too, so they match what Home shows.
+  // Hunts and distance count only finished hunts.
   const stats = useMemo(() => {
     let items = 0;
     let points = 0;
     let distance = 0;
-    for (const h of completedHunts) {
+    for (const h of hunts) {
       items += h.items.filter((i) => i.completed).length;
       points += h.earnedPoints;
+    }
+    for (const h of completedHunts) {
       if (h.routeMetrics?.estimatedDistanceMiles) {
         distance += h.routeMetrics.estimatedDistanceMiles;
       }
     }
     return { hunts: completedHunts.length, items, points, distance };
-  }, [completedHunts]);
+  }, [hunts, completedHunts]);
 
   const rank = getRank(stats.points);
 

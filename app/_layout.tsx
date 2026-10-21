@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,6 +17,9 @@ export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
   const loadHunts = useAppStore((s) => s.loadHunts);
   const migrateLegacyPhotos = useAppStore((s) => s.migrateLegacyPhotos);
+  // Hooks stay above the splash early return, or the first render after the splash has more hooks and React throws.
+  const C = useTheme();
+  const isDark = C.bg === Colors.bg;
 
   useEffect(() => {
     const prepare = async () => {
@@ -41,11 +45,8 @@ export default function RootLayout() {
     );
   }
 
-  const C = useTheme();
-  const isDark = C.bg === Colors.bg;
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: C.bg }}>
       <ToastProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack
@@ -53,7 +54,11 @@ export default function RootLayout() {
             headerStyle: { backgroundColor: C.card },
             headerTintColor: C.text,
             headerTitleStyle: { fontWeight: '700', color: C.text },
-            contentStyle: { backgroundColor: C.bg },
+            // On a wide browser window, keep screens to a phone-width column instead of stretching edge to edge.
+            contentStyle: [
+              { backgroundColor: C.bg },
+              Platform.OS === 'web' && { width: '100%', maxWidth: 640, alignSelf: 'center' },
+            ],
             animation: 'slide_from_right',
           }}
         >

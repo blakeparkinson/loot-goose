@@ -112,8 +112,10 @@ export function calculateRouteMetrics(hunt: Pick<Hunt, 'coords' | 'items'>): Rou
   }
   const duplicateLikeStops = Array.from(normalizedNames.values()).filter((count) => count > 1).length;
 
+  // Keep this first: the hunt screen's banner skips it by position.
   if (coords.length < hunt.items.length) {
-    warnings.push(`${hunt.items.length - coords.length} stop${hunt.items.length - coords.length === 1 ? '' : 's'} still need map coordinates.`);
+    const unmapped = hunt.items.length - coords.length;
+    warnings.push(`${unmapped} stop${unmapped === 1 ? " isn't" : "s aren't"} on the map yet.`);
   }
   if (exportPreview.omittedCount > 0) {
     warnings.push(`${exportPreview.omittedCount} stop${exportPreview.omittedCount === 1 ? '' : 's'} will be skipped when exporting the full route to maps.`);

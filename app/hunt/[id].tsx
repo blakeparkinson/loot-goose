@@ -143,6 +143,25 @@ export default function HuntScreen() {
     if (hunt) navigation.setOptions({ title: hunt.title });
   }, [hunt?.title]);
 
+  // Create replaces itself with this screen, and a link can open it directly, so there may be nothing
+  // to go back to. Give the header a way home in that case.
+  useEffect(() => {
+    if (navigation.canGoBack()) return;
+    navigation.setOptions({
+      headerLeft: ({ tintColor }: { tintColor?: string }) => (
+        <TouchableOpacity
+          onPress={() => router.replace('/')}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={{ marginRight: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Home"
+        >
+          <FontAwesome name="home" size={20} color={tintColor ?? Colors.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, router]);
+
   if (!hunt) {
     return (
       <View style={styles.centered}>
@@ -159,6 +178,10 @@ export default function HuntScreen() {
     : distMi < 0.1 ? `~${Math.round(distMi * 5280)} ft`
     : `~${distMi.toFixed(1)} mi`;
   const routeMetrics = calculateRouteMetrics(hunt);
+  // Stops are only placed on the map on demand (Scout, Directions), so a new hunt always has unmapped
+  // stops. That note comes first in the warnings when present; leave it to Scout, not the banner.
+  const hasUnmappedStops = routeMetrics.geocodedStopCount < routeMetrics.totalStops;
+  const bannerWarning = routeMetrics.warnings[hasUnmappedStops ? 1 : 0];
   const routePreview = buildRouteExportPreview(
     hunt.coords ?? null,
     hunt.items.map((item) => ({ coords: item.coords, query: item.geocodeQuery ?? item.sublocation ?? item.name })),
@@ -224,6 +247,10 @@ export default function HuntScreen() {
     setMenuSheetItem(item);
   };
 
+  // A new stop goes between this one and the next, so only offer it when the next stop is still to find.
+  const menuItemIndex = menuSheetItem ? hunt.items.findIndex((i) => i.id === menuSheetItem.id) : -1;
+  const nextStop = menuItemIndex >= 0 ? hunt.items[menuItemIndex + 1] : undefined;
+
   const menuSheetOptions: ActionSheetOption[] = menuSheetItem ? [
     ...((menuSheetItem.sublocation || menuSheetItem.geocodeQuery) ? [{
       label: 'Get Directions',
@@ -231,6 +258,11 @@ export default function HuntScreen() {
       onPress: () => handleNavigate(menuSheetItem),
     }] : []),
     { label: 'Swap Stop', icon: 'exchange', onPress: () => handleSwap(menuSheetItem) },
+    ...(nextStop && !nextStop.completed ? [{
+      label: 'Add Stop After',
+      icon: 'plus',
+      onPress: () => handleInsert(menuSheetItem, nextStop),
+    }] : []),
     { label: 'Remove Stop', icon: 'trash', onPress: () => handleDeleteItem(menuSheetItem), destructive: true },
   ] : [];
 
@@ -459,47 +491,10 @@ export default function HuntScreen() {
     }
   };
 
-  // Build interleaved list: item rows + "+" separators between consecutive incomplete stops
-  type ListRow =
-    | { type: 'item'; item: HuntItem; index: number }
-    | { type: 'insert'; afterItem: HuntItem; beforeItem: HuntItem; key: string };
-
-  const listData: ListRow[] = [];
-  hunt.items.forEach((item, i) => {
-    listData.push({ type: 'item', item, index: i });
-    const next = hunt.items[i + 1];
-    if (next && !item.completed && !next.completed) {
-      listData.push({ type: 'insert', afterItem: item, beforeItem: next, key: `insert-${item.id}-${next.id}` });
-    }
-  });
-
-  const renderRow = ({ item: row }: { item: ListRow }) => {
-    if (row.type === 'insert') {
-      const isInserting = insertingAfterId === row.afterItem.id;
-      return (
-        <TouchableOpacity
-          style={styles.insertRow}
-          onPress={() => handleInsert(row.afterItem, row.beforeItem)}
-          disabled={isInserting || insertingAfterId !== null}
-          activeOpacity={0.7}
-        >
-          <View style={styles.insertLine} />
-          {isInserting ? (
-            <ActivityIndicator size="small" color={Colors.gold} style={styles.insertIcon} />
-          ) : (
-            <View style={styles.insertPill}>
-              <FontAwesome name="plus" size={10} color={Colors.gold} />
-              <Text style={styles.insertPillText}>Add stop</Text>
-            </View>
-          )}
-          <View style={styles.insertLine} />
-        </TouchableOpacity>
-      );
-    }
-
-    const { item, index } = row;
+  const renderRow = ({ item, index }: { item: HuntItem; index: number }) => {
     const isNavigating = navigatingId === item.id;
     const isSwapping = swappingId === item.id;
+    const isInsertingAfter = insertingAfterId === item.id;
     const isNearby = nearbyItemId === item.id && !item.completed;
     const summaryText = item.lore ?? item.hint;
 
@@ -522,7 +517,7 @@ export default function HuntScreen() {
               )}
             </View>
             <View style={styles.itemInfo}>
-              <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
+              <Text style={styles.itemName}>
                 {item.name}
               </Text>
               <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
@@ -551,6 +546,9 @@ export default function HuntScreen() {
                     });
                   }}
                   activeOpacity={0.7}
+                  hitSlop={{ top: 15, bottom: 15 }}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: expandedLore.has(item.id) }}
                 >
                   <FontAwesome name="book" size={11} color={Colors.gold} />
                   <Text style={styles.loreToggleText}>
@@ -581,9 +579,12 @@ export default function HuntScreen() {
               <TouchableOpacity
                 style={styles.menuBtn}
                 onPress={() => handleMenuPress(item)}
-                disabled={swappingId !== null}
+                disabled={swappingId !== null || insertingAfterId !== null}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`More options for ${item.name}`}
               >
-                {isSwapping || isNavigating
+                {isSwapping || isNavigating || isInsertingAfter
                   ? <ActivityIndicator size="small" color={Colors.textMuted} />
                   : <FontAwesome name="ellipsis-v" size={16} color={Colors.textMuted} />
                 }
@@ -671,10 +672,10 @@ export default function HuntScreen() {
           </TouchableOpacity>
         )}
 
-        {routeMetrics.warnings.length > 0 && (
+        {bannerWarning && (
           <View style={styles.warningBox}>
             <FontAwesome name="exclamation-circle" size={12} color={Colors.gold} />
-            <Text style={styles.warningText} numberOfLines={2}>{routeMetrics.warnings[0]}</Text>
+            <Text style={styles.warningText} numberOfLines={2}>{bannerWarning}</Text>
           </View>
         )}
 
@@ -773,8 +774,8 @@ export default function HuntScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={listData}
-        keyExtractor={(row) => row.type === 'item' ? row.item.id : row.key}
+        data={hunt.items}
+        keyExtractor={(item) => item.id}
         renderItem={renderRow}
         ListHeaderComponent={Header}
         ListFooterComponent={Footer}
@@ -923,7 +924,7 @@ export default function HuntScreen() {
                 </MapView>
               ) : (
                 <View style={styles.scoutMapEmpty}>
-                  <Text style={styles.scoutMapEmptyText}>Still geocoding this hunt. Try route preview again in a moment.</Text>
+                  <Text style={styles.scoutMapEmptyText}>Still finding these stops on the map. Try again in a moment.</Text>
                 </View>
               )}
 
@@ -1236,7 +1237,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: `${Colors.gold}25`,
   },
   loreText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
-  verificationNote: { fontSize: 12, color: Colors.green },
+  verificationNote: { fontSize: 12, color: Colors.textSecondary },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
@@ -1353,20 +1354,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center',
   },
   modalConfirmText: { fontSize: 15, fontWeight: '800', color: '#000' },
-
-  insertRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 2, marginBottom: 2,
-  },
-  insertLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  insertPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
-    borderWidth: 1, borderColor: `${Colors.gold}55`,
-    backgroundColor: `${Colors.gold}10`,
-  },
-  insertPillText: { fontSize: 12, fontWeight: '700', color: Colors.gold },
-  insertIcon: { paddingHorizontal: 12 },
 
   footer: {
     marginTop: 8,

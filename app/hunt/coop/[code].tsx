@@ -160,7 +160,7 @@ export default function CoopScreen() {
           )}
         </View>
         <View style={styles.itemInfo}>
-          <Text style={[styles.itemName, item.completed && { color: Colors.textSecondary, textDecorationLine: 'line-through' }]}>
+          <Text style={styles.itemName}>
             {item.name}
           </Text>
           <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
@@ -183,6 +183,9 @@ export default function CoopScreen() {
         {!item.completed && (
           <TouchableOpacity
             style={styles.captureBtn}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Snap ${item.name}`}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({
@@ -220,6 +223,9 @@ export default function CoopScreen() {
             Share.share({ message: `Join my Loot Goose co-op hunt! Code: ${code}` });
           }}
           style={styles.shareCodeBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Share co-op code"
         >
           <FontAwesome name="share-alt" size={13} color={Colors.textSecondary} />
         </TouchableOpacity>
