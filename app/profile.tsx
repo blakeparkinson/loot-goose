@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Animated, Easing, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import Colors from '@/constants/Colors';
@@ -9,6 +9,8 @@ import { Hunt } from '@/lib/types';
 import { ThemeMode } from '@/constants/Colors';
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
+const STUDIO_MARK = require('@/assets/studio-mark.png');
+const STUDIO_URL = 'https://primemenagerie.com';
 
 const RANKS: { name: string; minPoints: number; color: string }[] = [
   { name: 'Legendary Goose', minPoints: 5000, color: '#F5A623' },
@@ -208,6 +210,21 @@ export default function ProfileScreen() {
                 );
               })}
             </View>
+
+            <TouchableOpacity
+              style={styles.studioRow}
+              onPress={() => Linking.openURL(STUDIO_URL).catch(() => {})}
+              activeOpacity={0.7}
+              accessibilityRole="link"
+              accessibilityLabel="A Prime Menagerie app. Opens primemenagerie.com"
+            >
+              <Image
+                source={STUDIO_MARK}
+                style={[styles.studioMark, { tintColor: C.textSecondary }]}
+                resizeMode="contain"
+              />
+              <Text style={[styles.studioText, { color: C.textSecondary }]}>A Prime Menagerie app</Text>
+            </TouchableOpacity>
           </View>
         }
         showsVerticalScrollIndicator={false}
@@ -320,4 +337,16 @@ const styles = StyleSheet.create({
   themePillTextActive: {
     color: '#000',
   },
+
+  studioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 20,
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  // The mark is 240×171; at the text's height that's about 20×14.
+  studioMark: { width: 20, height: 14 },
+  studioText: { fontSize: 12, fontWeight: '600' },
 });
