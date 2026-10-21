@@ -16,8 +16,8 @@ export default {
     },
     splash: {
       image: './assets/splash-icon.png',
-      resizeMode: 'cover',
-      backgroundColor: '#0D1117',
+      resizeMode: 'contain',
+      backgroundColor: '#0E2047',
     },
     ios: {
       supportsTablet: false,
@@ -32,7 +32,7 @@ export default {
       package: 'com.lootgoose.app',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon-foreground.png',
-        backgroundColor: '#0D1117',
+        backgroundColor: '#0E2047',
       },
       config: {
         googleMaps: {
