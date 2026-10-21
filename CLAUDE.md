@@ -13,7 +13,6 @@ npm start              # Start Expo dev server
 npm run ios            # Run on iOS simulator
 npm run android        # Run on Android emulator
 npm run web            # Run on web
-npm run generate-assets # Regenerates assets/ from an old SVG goose; overwrites the shipped icon (see BRAND.md)
 ```
 
 EAS builds are configured in `eas.json` with development, preview, and production profiles.

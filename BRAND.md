@@ -1,65 +1,53 @@
 # Loot Goose brand brief
 
-Status: draft brief for new art, written 2026-10-20. It describes where the brand is going. "What we have today" lists the assets it replaces. Once the new art is approved, rewrite this file as the brand guide, the way Affirming Antelope's `BRAND.md` reads.
+Status: the icon is approved and shipped (2026-10-20); the poses are still to make. Once they land, rewrite this file as the brand guide, the way Affirming Antelope's `BRAND.md` reads.
 
-Loot Goose is a Prime Menagerie app. Affirming Antelope and Far Fox set the bar for the studio: one character, drawn one way, used on purpose.
+Loot Goose is a Prime Menagerie app. It shares its look with Slab Rat: the same cartoon style, the same navy badge, one animal per app.
 
 ## Brand idea
 
 Loot Goose turns wherever you are into a scavenger hunt. Pick a place and a theme, walk to real stops, snap each find, and an AI judge rules on whether it counts. Play solo or race friends in co-op.
 
-The goose is the trickster who already found the loot and dares you to catch up. The brand should feel mischievous, outdoorsy, quick, and competitive in a friendly way. It is a goose, not a duckling and not a pirate.
+The goose is the detective of the hunt: smug, nosy, and sure it will spot the thing before you do. The brand should feel mischievous, curious, quick, and competitive in a friendly way. It is a goose, not a duckling and not a pirate.
 
-## What we have today
+## The icon
 
-- **App icon (`assets/icon.png`).** A round white bird with a short orange bill wears an explorer hat and holds a map, with a medal, sparkles and a gold disc behind it.
-  - It reads as a duckling: no neck, no attitude.
-  - It carries five props, so at home-screen size it blurs.
-  - The glossy, gradient style doesn't match the flat, outlined studio art.
-  - Its navy field (`#1E2349`) doesn't match the app's launch background (`#0D1117`).
-- **The only mascot art.** `GooseSplash` shows the icon. The goose has no poses for empty states, judging, or a finished hunt.
-- **`scripts/generate-assets.mjs` draws a different goose.** It's an SVG with a detective hat and a loot bag, and it writes `assets/icon.png`, `adaptive-icon.png`, `splash-icon.png` and `favicon.png`. Running `npm run generate-assets` today would overwrite the shipped icon with that older goose. Retire the script, or point it at the new art, when the new art lands.
-- **UI palette (`constants/Colors.ts`).** It's GitHub's Primer palette: `#0D1117`, `#161B22`, `#30363D`, the `#58A6FF` blue and the `#BC8CFF` purple. Only the gold belongs to Loot Goose.
-- **Type.** Only the system font, with heavy weights and wide tracking for the hero text. There is no wordmark.
+`assets/icon.png` is the goose peering through a gold magnifying glass, its eye magnified and one brow raised, on a navy badge. It was generated in Figma from this brief (file "Loot Goose icon concepts") and picked over a coin, a treasure map and a map pin, because the magnifying glass says "hunt" at any size.
+
+| File | What it is |
+| --- | --- |
+| `assets/icon.png` | 1024 px, no transparency (iOS and the in-app goose) |
+| `assets/adaptive-icon-foreground.png` | The badge clipped to a circle inside the Android safe zone, on transparency |
+| `assets/splash-icon.png` | The badge at 60% on the badge navy, shown with `contain` |
+| `assets/favicon.png` | 48 px |
+
+The screens that show the goose (`GooseSplash`, the home empty state, Goose Loose, profile, hunt complete and the create button) use `icon.png` with rounded corners, so they pick up the new art.
+
+The old asset generator (`scripts/generate-assets.mjs`) drew a different, older goose and wrote over `icon.png`; it's gone. The icon set is made from the approved art, not generated in code.
+
+The master lives in the studio repo, `prime-menagerie/brand/goose/`. To change the icon, change the master there and run `npm run brand:sync -- loot-goose <this checkout>`; don't edit these files by hand.
 
 ## Character
 
-- **Species.** A domestic white goose (Embden type): long S-curved neck, heavy body, orange bill with a darker knob at the tip, orange legs, and a small dark eye under a low brow that gives it attitude.
-- **Personality.** Smug, fast, loud, and generous once you've earned it. "HONK" is its catchphrase.
-- **Signature prop: one gold coin.** A pose gets one prop at most: the coin, a map, or the phone camera. Hats and costumes are optional extras, never part of the base character.
-- **Style.** Flat color, a thick rounded outline in ink, at most two tones of shading. No gradients, no gloss, no 3D, no photoreal feathers. Match the outline weight of Far Fox's fox and Affirming Antelope's antelope so the goose sits in the Prime Menagerie set.
+- **Species.** A domestic white goose (Embden type): long S-curved neck, heavy body, orange bill, orange legs, and a dark eye under a low, expressive brow.
+- **Personality.** Smug, nosy, loud, and generous once you've earned it. "HONK" is its catchphrase.
+- **Signature prop: the gold magnifying glass.** A pose gets one prop at most: the magnifying glass, a map, or the phone camera. Hats and costumes are optional extras, never part of the base character.
+- **Style.** Match the icon and Slab Rat's mood poses:
+  - a bold navy outline;
+  - soft two-tone cel shading, with white feathers shaded in cool lavender-gray;
+  - orange and gold as the only warm colors.
+- **Never:** flat clip art, glossy 3D, or photoreal feathers.
 - **Silhouette test.** Filled solid black, the pose still reads as a goose. The neck does that work.
 
-## App icon
+## Poses still to make
 
-Ask for three concepts and pick one:
-
-1. **Coin grab.** The goose's head and neck in profile, a gold coin clamped in its bill, eye sliding toward the viewer.
-2. **HONK.** The head thrown back with the bill wide open and a coin flying out.
-3. **Found it.** The head peeking over the edge of the icon with a map pin.
-
-Rules for all three:
-
-- **One idea.** No scenery, sparkles, stars or extra props.
-- **Background.** A single flat field. Try the white goose on loot gold (`#F5A623`) first: it stands out among dark icons and owns the app's color. Mock the ink field (`#0D1117`) next to it on a real home screen before choosing.
-- **Size test.** It must read at 60 px (the home screen) and 29 px (Settings). Shrink it: can you still tell it's a goose with a coin?
-- **Deliverables:**
-  - 1024 px master PNG with no transparency (iOS);
-  - Android adaptive foreground with the goose inside the central 66% safe zone, plus a background color;
-  - 196 px favicon;
-  - splash mark;
-  - one-color version.
-
-## Poses
-
-Production art: transparent PNG, 1024 px square, same outline and palette as the icon.
+Production art: 1024 px square, the same style as the icon, on the navy badge plus a transparent version.
 
 | Pose | What it shows | Where it goes |
 | --- | --- | --- |
-| Default | Standing, wing raised in a wave | Home, onboarding |
 | HONK | Neck stretched up, bill open | Splash, success toasts |
-| Found it | Coin held up proudly | Item verified, hunt complete |
-| Judging | Squinting at a photo held in a wing | The AI judge's loading state |
+| Found it | Holding up the find, delighted | Item verified, hunt complete |
+| Judging | Magnifying glass over a photo | The AI judge's loading state |
 | Nope | Wings crossed, head turned away | A find the judge rejects |
 | Searching | Peering over a map | Empty states, no hunts nearby, errors |
 
@@ -67,22 +55,21 @@ Use the goose to say something: a result, a nudge, an empty state. Don't place i
 
 ## Color
 
-Gold is the brand. Build everything else around it, not around GitHub's palette.
-
 | Token | Value | Use |
 | --- | --- | --- |
-| Loot gold | `#F5A623` | Primary actions, coins, the icon field. Existing dark-theme token. |
+| Loot gold | `#F5A623` | Primary actions, the magnifying glass, rewards. Existing dark-theme token. |
 | Deep gold | `#D4880F` | Pressed states, gold on light backgrounds. Existing light-theme token. |
+| Badge navy | `#0E2047` | The icon field, the splash and the Android icon background. |
 | Goose white | `#FFFDF7` | The bird. A warm white, not blue-white. |
-| Bill orange | `#E8611A` | Bill and legs, in illustration only. Never a UI color, so it doesn't compete with gold or echo Far Fox's orange. |
-| Ink | `#0D1117` | Illustration outlines, dark surfaces, the launch background. |
+| Bill orange | `#E8611A` | Bill and legs, in illustration only. Never a UI color. |
+| Ink | `#0D1117` | Dark surfaces and the app background. |
 
 - The dark surfaces and the functional green (verified) and red (rejected) can stay.
-- The Primer blue and purple are not brand colors. Keep them out of the art, the icon and marketing, and replace their decorative uses in the UI with gold tints.
+- The rest of `constants/Colors.ts` is GitHub's Primer palette. Its blue and purple are not brand colors: keep them out of the art and marketing, and replace their decorative uses in the UI with gold tints.
 
 ## Typography
 
-- **Wordmark and big numbers:** pick one chunky, rounded display face that matches the goose's outline, such as Lilita One or Baloo 2 ExtraBold. Set "Loot Goose" in normal case.
+- **Wordmark and big numbers:** pick one chunky, rounded display face, such as Lilita One or Baloo 2 ExtraBold. Set "Loot Goose" in normal case.
 - **Body and UI:** stay on the system font.
 - **Case:** sentence case for headings and labels. All caps only for "HONK" and short action labels.
 
@@ -102,13 +89,11 @@ Rules:
 - When the judge rejects a find, the goose says what it was looking for so the player can try again.
 - Avoid pirate talk, "epic" or "legendary", and exclamation marks on every line.
 
-## Rollout after approval
+## Still to do
 
-1. Replace the icon set in `assets/` and the art in `GooseSplash`, and retire `scripts/generate-assets.mjs`.
-2. Add the poses and wire them to the screens in the table.
-3. Swap the goose on primemenagerie.com: the medallion in `public/apps/loot-goose.png` and the hero poses.
-4. Swap it in the menagerie row on yourbuddyblake.com.
-5. Rewrite this file as the brand guide.
+1. Make the poses in the table and wire them to their screens.
+2. Swap the goose on primemenagerie.com (`public/apps/loot-goose.png` and the hero poses) and in the menagerie row on yourbuddyblake.com.
+3. Rewrite this file as the brand guide.
 
 ## Name clearance
 
