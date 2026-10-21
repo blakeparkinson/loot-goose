@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import {
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import Colors from '@/constants/Colors';
+import { AppTheme, DarkTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 import { useAppStore } from '@/lib/store';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
@@ -32,10 +33,10 @@ import { swapItem, insertItem, tuneHunt, createCoopSession, publishHunt } from '
 import { buildRouteExportPreview, calculateRouteMetrics } from '@/lib/huntInsights';
 import { randomPlayerName } from '@/app/hunt/coop/[code]';
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: Colors.green,
-  medium: Colors.gold,
-  hard: Colors.red,
+const DIFFICULTY_COLOR: Record<string, keyof AppTheme> = {
+  easy: 'green',
+  medium: 'gold',
+  hard: 'red',
 };
 
 function haversineMi(a: Coords, b: Coords): number {
@@ -57,6 +58,8 @@ function routeDistanceMi(items: HuntItem[]): number | null {
 }
 
 export default function HuntScreen() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -156,23 +159,25 @@ export default function HuntScreen() {
           accessibilityRole="button"
           accessibilityLabel="Home"
         >
-          <FontAwesome name="home" size={20} color={tintColor ?? Colors.text} />
+          <FontAwesome name="home" size={20} color={tintColor ?? C.text} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, router]);
+  }, [navigation, router, C]);
 
   if (!hunt) {
     return (
       <View style={styles.centered}>
-        <Text style={{ color: Colors.textSecondary }}>Hunt not found.</Text>
+        <Text style={{ color: C.textSecondary }}>Hunt not found.</Text>
       </View>
     );
   }
 
   const completedCount = hunt.items.filter((i) => i.completed).length;
   const pct = hunt.items.length > 0 ? (completedCount / hunt.items.length) * 100 : 0;
-  const diffColor = DIFFICULTY_COLOR[hunt.difficulty];
+  const diffKey = DIFFICULTY_COLOR[hunt.difficulty] ?? 'gold';
+  const diffColor = C[diffKey];
+  const diffTextColor = diffKey === 'gold' ? C.goldText : diffColor;
   const distMi = routeDistanceMi(hunt.items);
   const distLabel = distMi === null ? null
     : distMi < 0.1 ? `~${Math.round(distMi * 5280)} ft`
@@ -509,9 +514,9 @@ export default function HuntScreen() {
       <View style={[styles.itemCard, item.completed && styles.itemCardDone, isNearby && styles.itemCardNearby]}>
         <View style={styles.itemCardRow}>
           <View style={styles.itemLeft}>
-            <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
+            <View style={[styles.itemNumber, item.completed && { backgroundColor: C.greenLight }]}>
               {item.completed ? (
-                <FontAwesome name="check" size={14} color={Colors.green} />
+                <FontAwesome name="check" size={14} color={C.green} />
               ) : (
                 <Text style={styles.itemNumberText}>{index + 1}</Text>
               )}
@@ -523,12 +528,12 @@ export default function HuntScreen() {
               <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
               {!item.completed && item.sublocation && (
                 <View style={styles.sublocRow}>
-                  <FontAwesome name="map-pin" size={11} color={Colors.textMuted} />
+                  <FontAwesome name="map-pin" size={11} color={C.textMuted} />
                   <Text style={styles.itemSublocation} numberOfLines={1}>{item.sublocation}</Text>
                   {distLabel && (
                     <>
                       <Text style={styles.sublocSep}>·</Text>
-                      <FontAwesome name="location-arrow" size={10} color={Colors.textMuted} />
+                      <FontAwesome name="location-arrow" size={10} color={C.textMuted} />
                       <Text style={styles.distLabel}>{distLabel}</Text>
                     </>
                   )}
@@ -550,26 +555,26 @@ export default function HuntScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ expanded: expandedLore.has(item.id) }}
                 >
-                  <FontAwesome name="book" size={11} color={Colors.gold} />
+                  <FontAwesome name="book" size={11} color={C.gold} />
                   <Text style={styles.loreToggleText}>
                     {expandedLore.has(item.id) ? 'Hide summary' : 'View summary'}
                   </Text>
                   <FontAwesome
                     name={expandedLore.has(item.id) ? 'chevron-up' : 'chevron-down'}
                     size={10}
-                    color={Colors.gold}
+                    color={C.gold}
                   />
                 </TouchableOpacity>
               ) : null}
               {item.completed && item.verificationNote ? (
                 <Text style={styles.verificationNote} numberOfLines={1}>
-                  <FontAwesome name="check-circle" size={11} color={Colors.green} /> {item.verificationNote}
+                  <FontAwesome name="check-circle" size={11} color={C.green} /> {item.verificationNote}
                 </Text>
               ) : null}
             </View>
           </View>
           <View style={styles.itemRight}>
-            <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
+            <Text style={[styles.itemPoints, { color: item.completed ? C.green : C.goldText }]}>
               {item.points}pts
             </Text>
             {item.completed && item.photoUri && (
@@ -585,8 +590,8 @@ export default function HuntScreen() {
                 accessibilityLabel={`More options for ${item.name}`}
               >
                 {isSwapping || isNavigating || isInsertingAfter
-                  ? <ActivityIndicator size="small" color={Colors.textMuted} />
-                  : <FontAwesome name="ellipsis-v" size={16} color={Colors.textMuted} />
+                  ? <ActivityIndicator size="small" color={C.textMuted} />
+                  : <FontAwesome name="ellipsis-v" size={16} color={C.textMuted} />
                 }
               </TouchableOpacity>
             )}
@@ -618,9 +623,9 @@ export default function HuntScreen() {
               router.push({ pathname: '/camera', params: { huntId: hunt.id, itemId: item.id } });
             }}
           >
-            <FontAwesome name="map-marker" size={11} color={Colors.green} />
+            <FontAwesome name="map-marker" size={11} color={C.green} />
             <Text style={styles.nearbyBannerText}>You're here — snap it!</Text>
-            <FontAwesome name="camera" size={11} color={Colors.green} />
+            <FontAwesome name="camera" size={11} color={C.green} />
           </TouchableOpacity>
         )}
       </View>
@@ -637,24 +642,24 @@ export default function HuntScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
-            <Text style={[styles.statValue, { color: Colors.gold }]}>{hunt.earnedPoints}</Text>
+            <Text style={[styles.statValue, { color: C.goldText }]}>{hunt.earnedPoints}</Text>
             <Text style={styles.statLabel}>Points</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <View style={[styles.diffPill, { backgroundColor: `${diffColor}22` }]}>
-              <Text style={[styles.diffPillText, { color: diffColor }]}>{hunt.difficulty}</Text>
+              <Text style={[styles.diffPillText, { color: diffTextColor }]}>{hunt.difficulty}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct === 100 ? Colors.green : Colors.gold }]} />
+          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct === 100 ? C.green : C.gold }]} />
         </View>
 
         {distLabel && (
           <View style={styles.distanceRow}>
-            <FontAwesome name="road" size={11} color={Colors.textMuted} />
+            <FontAwesome name="road" size={11} color={C.textMuted} />
             <Text style={styles.distanceText}>{distLabel} straight-line</Text>
           </View>
         )}
@@ -674,7 +679,7 @@ export default function HuntScreen() {
 
         {bannerWarning && (
           <View style={styles.warningBox}>
-            <FontAwesome name="exclamation-circle" size={12} color={Colors.gold} />
+            <FontAwesome name="exclamation-circle" size={12} color={C.gold} />
             <Text style={styles.warningText} numberOfLines={2}>{bannerWarning}</Text>
           </View>
         )}
@@ -691,10 +696,10 @@ export default function HuntScreen() {
             disabled={isTuning || hunt.items.every((i) => i.completed)}
           >
             {isTuning ? (
-              <ActivityIndicator size="small" color={Colors.gold} />
+              <ActivityIndicator size="small" color={C.gold} />
             ) : (
               <>
-                <FontAwesome name="magic" size={14} color={Colors.gold} />
+                <FontAwesome name="magic" size={14} color={C.gold} />
                 <Text style={styles.tuneBtnText}>Tune</Text>
               </>
             )}
@@ -705,10 +710,10 @@ export default function HuntScreen() {
             disabled={isScoutLoading}
           >
             {isScoutLoading ? (
-              <ActivityIndicator size="small" color={Colors.gold} />
+              <ActivityIndicator size="small" color={C.gold} />
             ) : (
               <>
-                <FontAwesome name="compass" size={13} color={Colors.gold} />
+                <FontAwesome name="compass" size={13} color={C.gold} />
                 <Text style={styles.previewBtnText}>Scout</Text>
               </>
             )}
@@ -723,10 +728,10 @@ export default function HuntScreen() {
             disabled={isCreatingCoop}
           >
             {isCreatingCoop ? (
-              <ActivityIndicator size="small" color={Colors.gold} />
+              <ActivityIndicator size="small" color={C.gold} />
             ) : (
               <>
-                <FontAwesome name="group" size={13} color={Colors.gold} />
+                <FontAwesome name="group" size={13} color={C.gold} />
                 <Text style={styles.coopBtnText}>Co-op</Text>
               </>
             )}
@@ -735,7 +740,7 @@ export default function HuntScreen() {
             style={styles.routeBtn}
             onPress={handleExportRoute}
           >
-            <FontAwesome name="map" size={13} color={Colors.gold} />
+            <FontAwesome name="map" size={13} color={C.gold} />
             <Text style={styles.routeBtnText}>Route</Text>
           </TouchableOpacity>
         </View>
@@ -749,9 +754,9 @@ export default function HuntScreen() {
     <View style={styles.footer}>
       <TouchableOpacity style={styles.publishBtn} onPress={handlePublish} disabled={isPublishing}>
         {isPublishing
-          ? <ActivityIndicator size="small" color={Colors.gold} />
+          ? <ActivityIndicator size="small" color={C.gold} />
           : <>
-              <FontAwesome name="globe" size={13} color={Colors.gold} />
+              <FontAwesome name="globe" size={13} color={C.gold} />
               <Text style={styles.publishBtnText}>
                 {hunt!.publishedCode ? 'In Library ✓' : 'Publish to Library'}
               </Text>
@@ -759,7 +764,7 @@ export default function HuntScreen() {
         }
       </TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-        <FontAwesome name="trash" size={13} color={Colors.red} />
+        <FontAwesome name="trash" size={13} color={C.red} />
         <Text style={styles.deleteBtnText}>Delete Hunt</Text>
       </TouchableOpacity>
     </View>
@@ -800,7 +805,7 @@ export default function HuntScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder={`e.g. "more food spots", "keep stops closer together", "add street art", "follow the riverfront"`}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={tuneFeedback}
               onChangeText={setTuneFeedback}
               multiline
@@ -843,7 +848,7 @@ export default function HuntScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="Your display name"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={coopPlayerName}
               onChangeText={setCoopPlayerName}
               maxLength={30}
@@ -905,7 +910,11 @@ export default function HuntScreen() {
               </View>
 
               {mapRegion ? (
-                <MapView style={styles.scoutMap} initialRegion={mapRegion}>
+                <MapView
+                  style={styles.scoutMap}
+                  initialRegion={mapRegion}
+                  userInterfaceStyle={C === DarkTheme ? 'dark' : 'light'}
+                >
                   {mappedStops.map((item, index) => (
                     <Marker
                       key={item.id}
@@ -917,7 +926,7 @@ export default function HuntScreen() {
                   {mappedStops.length >= 2 && (
                     <Polyline
                       coordinates={mappedStops.map((item) => item.coords!)}
-                      strokeColor={Colors.blue}
+                      strokeColor={C.blue}
                       strokeWidth={3}
                     />
                   )}
@@ -933,7 +942,7 @@ export default function HuntScreen() {
                   <Text style={styles.scoutSectionTitle}>Sanity Check</Text>
                   {routeMetrics.warnings.map((warning) => (
                     <View key={warning} style={styles.scoutWarningRow}>
-                      <FontAwesome name="warning" size={11} color={Colors.gold} />
+                      <FontAwesome name="warning" size={11} color={C.gold} />
                       <Text style={styles.scoutWarningText}>{warning}</Text>
                     </View>
                   ))}
@@ -963,7 +972,7 @@ export default function HuntScreen() {
                           onPress={() => moveItem(item.id, -1)}
                           disabled={hunt.items.findIndex((candidate) => candidate.id === item.id) === 0}
                         >
-                          <FontAwesome name="arrow-up" size={11} color={Colors.textSecondary} />
+                          <FontAwesome name="arrow-up" size={11} color={C.textSecondary} />
                           <Text style={styles.scoutMiniBtnText}>Up</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -971,7 +980,7 @@ export default function HuntScreen() {
                           onPress={() => moveItem(item.id, 1)}
                           disabled={hunt.items.findIndex((candidate) => candidate.id === item.id) === hunt.items.length - 1}
                         >
-                          <FontAwesome name="arrow-down" size={11} color={Colors.textSecondary} />
+                          <FontAwesome name="arrow-down" size={11} color={C.textSecondary} />
                           <Text style={styles.scoutMiniBtnText}>Down</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -980,11 +989,11 @@ export default function HuntScreen() {
                           disabled={scoutRerollingId === item.id}
                         >
                           {scoutRerollingId === item.id ? (
-                            <ActivityIndicator size="small" color={Colors.gold} />
+                            <ActivityIndicator size="small" color={C.gold} />
                           ) : (
                             <>
-                              <FontAwesome name="refresh" size={11} color={Colors.gold} />
-                              <Text style={[styles.scoutMiniBtnText, { color: Colors.gold }]}>Reroll</Text>
+                              <FontAwesome name="refresh" size={11} color={C.gold} />
+                              <Text style={[styles.scoutMiniBtnText, { color: C.goldText }]}>Reroll</Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -1004,10 +1013,10 @@ export default function HuntScreen() {
                   disabled={isScoutTightening}
                 >
                   {isScoutTightening ? (
-                    <ActivityIndicator size="small" color={Colors.gold} />
+                    <ActivityIndicator size="small" color={C.gold} />
                   ) : (
                     <>
-                      <FontAwesome name="compress" size={13} color={Colors.gold} />
+                      <FontAwesome name="compress" size={13} color={C.gold} />
                       <Text style={styles.tightenBtnText}>Tighten</Text>
                     </>
                   )}
@@ -1040,7 +1049,7 @@ export default function HuntScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder={`What kind of stop? (optional)\ne.g. a great coffee shop, street art, something historic…`}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={stopPrompt}
               onChangeText={setStopPrompt}
               multiline
@@ -1120,37 +1129,37 @@ export default function HuntScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { padding: 16, paddingBottom: 24 },
 
   statsCard: {
-    backgroundColor: Colors.card, borderRadius: 16, padding: 20,
-    marginBottom: 24, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.card, borderRadius: 16, padding: 20,
+    marginBottom: 24, borderWidth: 1, borderColor: C.border,
   },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 16 },
   stat: { alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 24, fontWeight: '800', color: Colors.text },
-  statLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  statDivider: { width: 1, height: 36, backgroundColor: Colors.border },
+  statValue: { fontSize: 24, fontWeight: '800', color: C.text },
+  statLabel: { fontSize: 12, color: C.textSecondary, fontWeight: '500' },
+  statDivider: { width: 1, height: 36, backgroundColor: C.border },
   diffPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
   diffPillText: { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
 
-  progressBar: { height: 8, backgroundColor: Colors.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 12 },
+  progressBar: { height: 8, backgroundColor: C.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 12 },
   progressFill: { height: '100%', borderRadius: 4 },
 
   distanceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     marginBottom: 10,
   },
-  distanceText: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
+  distanceText: { fontSize: 12, color: C.textMuted, fontWeight: '500' },
 
   completedBanner: {
-    backgroundColor: Colors.greenLight, borderRadius: 10, padding: 12,
+    backgroundColor: C.greenLight, borderRadius: 10, padding: 12,
     alignItems: 'center', marginBottom: 12,
   },
-  completedBannerText: { color: Colors.green, fontWeight: '700', fontSize: 14 },
+  completedBannerText: { color: C.green, fontWeight: '700', fontSize: 14 },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1159,95 +1168,95 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: `${Colors.gold}12`,
+    backgroundColor: `${C.gold}12`,
     borderWidth: 1,
-    borderColor: `${Colors.gold}30`,
+    borderColor: `${C.gold}30`,
   },
-  warningText: { flex: 1, color: Colors.textSecondary, fontSize: 12, lineHeight: 18 },
+  warningText: { flex: 1, color: C.textSecondary, fontSize: 12, lineHeight: 18 },
 
   headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   tuneBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.gold}30`,
+    gap: 8, backgroundColor: C.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${C.gold}30`,
   },
-  tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.gold },
+  tuneBtnText: { fontSize: 14, fontWeight: '700', color: C.goldText },
   previewBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.gold}30`,
+    gap: 6, backgroundColor: C.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${C.gold}30`,
   },
-  previewBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
+  previewBtnText: { fontSize: 13, fontWeight: '700', color: C.goldText },
   coopBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.gold}30`,
+    gap: 6, backgroundColor: C.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${C.gold}30`,
   },
-  coopBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
+  coopBtnText: { fontSize: 13, fontWeight: '700', color: C.goldText },
   routeBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.gold}30`,
+    gap: 6, backgroundColor: C.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${C.gold}30`,
   },
-  routeBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
+  routeBtnText: { fontSize: 13, fontWeight: '700', color: C.goldText },
 
   itemThumb: {
     width: 52, height: 52, borderRadius: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
   },
 
-  itemsHeading: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  itemsHeading: { fontSize: 13, fontWeight: '700', color: C.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
 
   itemCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: C.border,
   },
   itemCardRow: { flexDirection: 'row', alignItems: 'flex-start' },
   itemCardDone: { opacity: 0.6 },
-  itemCardNearby: { borderColor: Colors.green, backgroundColor: `${Colors.green}08` },
+  itemCardNearby: { borderColor: C.green, backgroundColor: `${C.green}08` },
   nearbyBanner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, marginTop: 10, paddingVertical: 8, borderRadius: 8,
-    backgroundColor: `${Colors.green}15`, borderWidth: 1, borderColor: `${Colors.green}40`,
+    backgroundColor: `${C.green}15`, borderWidth: 1, borderColor: `${C.green}40`,
   },
-  nearbyBannerText: { fontSize: 12, fontWeight: '700', color: Colors.green },
+  nearbyBannerText: { fontSize: 12, fontWeight: '700', color: C.green },
   itemLeft: { flex: 1, flexDirection: 'row', gap: 12 },
   itemNumber: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  itemNumberText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  itemNumberText: { color: C.textSecondary, fontWeight: '700', fontSize: 14 },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
-  itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
+  itemName: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 3 },
+  itemDesc: { fontSize: 13, color: C.textSecondary, lineHeight: 18, marginBottom: 4 },
   sublocRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3, flexWrap: 'wrap' },
-  itemSublocation: { fontSize: 12, color: Colors.textMuted, flexShrink: 1 },
-  sublocSep: { fontSize: 12, color: Colors.textMuted },
-  distLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
+  itemSublocation: { fontSize: 12, color: C.textMuted, flexShrink: 1 },
+  sublocSep: { fontSize: 12, color: C.textMuted },
+  distLabel: { fontSize: 12, color: C.textMuted, fontWeight: '600' },
 
   loreToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4,
     alignSelf: 'flex-start',
   },
-  loreToggleText: { fontSize: 12, color: Colors.gold, fontWeight: '600' },
+  loreToggleText: { fontSize: 12, color: C.goldText, fontWeight: '600' },
   loreBox: {
     marginTop: 8, marginBottom: 2,
-    backgroundColor: `${Colors.gold}10`,
+    backgroundColor: `${C.gold}10`,
     borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: `${Colors.gold}25`,
+    borderWidth: 1, borderColor: `${C.gold}25`,
   },
-  loreText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
-  verificationNote: { fontSize: 12, color: Colors.textSecondary },
+  loreText: { fontSize: 13, color: C.textSecondary, lineHeight: 19 },
+  verificationNote: { fontSize: 12, color: C.textSecondary },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
   menuBtn: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface,
     alignItems: 'center', justifyContent: 'center',
   },
   snapBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.gold, borderRadius: 10,
+    gap: 8, backgroundColor: C.gold, borderRadius: 10,
     paddingVertical: 11, marginTop: 10,
   },
   snapBarText: { fontSize: 15, fontWeight: '800', color: '#000' },
@@ -1257,9 +1266,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 36,
-    borderTopWidth: 1, borderColor: Colors.border,
+    borderTopWidth: 1, borderColor: C.border,
   },
   scoutCard: { maxHeight: '88%' },
   scoutStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
@@ -1267,43 +1276,43 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     paddingVertical: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     alignItems: 'center',
   },
-  scoutStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  scoutStatLabel: { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 4 },
+  scoutStatValue: { fontSize: 18, fontWeight: '800', color: C.text },
+  scoutStatLabel: { fontSize: 11, color: C.textMuted, textTransform: 'uppercase', marginTop: 4 },
   scoutMap: { height: 220, borderRadius: 16, marginBottom: 16 },
   scoutMapEmpty: {
     height: 160,
     borderRadius: 16,
     marginBottom: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  scoutMapEmptyText: { color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  scoutMapEmptyText: { color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
   scoutSection: { marginBottom: 16 },
   scoutSectionTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: Colors.textSecondary,
+    color: C.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 8,
   },
   scoutWarningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
-  scoutWarningText: { flex: 1, color: Colors.textSecondary, lineHeight: 18, fontSize: 12 },
+  scoutWarningText: { flex: 1, color: C.textSecondary, lineHeight: 18, fontSize: 12 },
   confidenceRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: C.border,
   },
   confidenceBadge: {
     minWidth: 62,
@@ -1312,13 +1321,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
   },
-  confidenceHigh: { backgroundColor: Colors.greenLight },
-  confidenceMedium: { backgroundColor: Colors.goldLight },
-  confidenceLow: { backgroundColor: Colors.redLight },
-  confidenceBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.text, textTransform: 'uppercase' },
+  confidenceHigh: { backgroundColor: C.greenLight },
+  confidenceMedium: { backgroundColor: C.goldLight },
+  confidenceLow: { backgroundColor: C.redLight },
+  confidenceBadgeText: { fontSize: 11, fontWeight: '800', color: C.text, textTransform: 'uppercase' },
   confidenceTextCol: { flex: 1 },
-  confidenceName: { color: Colors.text, fontWeight: '700', marginBottom: 3 },
-  confidenceNote: { color: Colors.textSecondary, fontSize: 12, lineHeight: 18 },
+  confidenceName: { color: C.text, fontWeight: '700', marginBottom: 3 },
+  confidenceNote: { color: C.textSecondary, fontSize: 12, lineHeight: 18 },
   scoutActionsRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   scoutMiniBtn: {
     flexDirection: 'row',
@@ -1327,31 +1336,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
-  scoutMiniBtnText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  scoutMiniBtnText: { fontSize: 11, fontWeight: '700', color: C.textSecondary },
   tightenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  tightenBtnText: { fontSize: 15, fontWeight: '700', color: Colors.gold },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
+  tightenBtnText: { fontSize: 15, fontWeight: '700', color: C.goldText },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: C.textSecondary, marginBottom: 16 },
   modalInput: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 14, padding: 14, fontSize: 15, color: Colors.text,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, padding: 14, fontSize: 15, color: C.text,
     minHeight: 72, textAlignVertical: 'top',
   },
-  modalHint: { fontSize: 12, color: Colors.textMuted, marginTop: 6, marginBottom: 20 },
+  modalHint: { fontSize: 12, color: C.textMuted, marginTop: 6, marginBottom: 20 },
   modalButtons: { flexDirection: 'row', gap: 10 },
   modalCancelBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
     alignItems: 'center',
   },
-  modalCancelText: { fontSize: 15, fontWeight: '700', color: Colors.textSecondary },
+  modalCancelText: { fontSize: 15, fontWeight: '700', color: C.textSecondary },
   modalConfirmBtn: {
     flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center',
   },
   modalConfirmText: { fontSize: 15, fontWeight: '800', color: '#000' },
 
@@ -1363,24 +1372,24 @@ const styles = StyleSheet.create({
   publishBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 14, borderRadius: 14,
-    borderWidth: 1, borderColor: `${Colors.gold}55`,
-    backgroundColor: `${Colors.gold}12`,
+    borderWidth: 1, borderColor: `${C.gold}55`,
+    backgroundColor: `${C.gold}12`,
   },
-  publishBtnText: { color: Colors.gold, fontWeight: '700', fontSize: 14 },
+  publishBtnText: { color: C.goldText, fontWeight: '700', fontSize: 14 },
 
   publishCodeBox: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
     borderRadius: 14, padding: 16, marginBottom: 20, alignItems: 'center',
   },
   publishCodeText: {
-    fontSize: 32, fontWeight: '800', color: Colors.text,
+    fontSize: 32, fontWeight: '800', color: C.text,
     letterSpacing: 10, textAlign: 'center',
   },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: Colors.redLight,
+    backgroundColor: C.redLight,
   },
-  deleteBtnText: { color: Colors.red, fontWeight: '700', fontSize: 14 },
+  deleteBtnText: { color: C.red, fontWeight: '700', fontSize: 14 },
 });

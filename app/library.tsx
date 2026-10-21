@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { useTheme } from '@/lib/useTheme';
 import { Hunt, HuntDifficulty, QuickPreset } from '@/lib/types';
@@ -28,16 +28,17 @@ import {
 import { Toast } from '@/components/Toast';
 import { HuntCardSkeleton } from '@/components/Skeleton';
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: Colors.green,
-  medium: Colors.gold,
-  hard: Colors.red,
+const DIFFICULTY_COLOR: Record<string, keyof AppTheme> = {
+  easy: 'green',
+  medium: 'gold',
+  hard: 'red',
 };
 
 export default function LibraryScreen() {
   const router = useRouter();
   const saveHunt = useAppStore((s) => s.saveHunt);
   const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [query, setQuery] = useState('');
@@ -165,7 +166,9 @@ export default function LibraryScreen() {
 
   const renderCard = ({ item }: { item: LibraryHunt }) => {
     const isExpanded = expandedCode === item.code;
-    const diffColor = DIFFICULTY_COLOR[item.difficulty] ?? Colors.gold;
+    const diffKey = DIFFICULTY_COLOR[item.difficulty] ?? 'gold';
+    const diffColor = C[diffKey];
+    const diffTextColor = diffKey === 'gold' ? C.goldText : diffColor;
     const isLoadingThis = loadingCode === item.code;
     const isLoadingExpand = loadingExpandCode === item.code;
     const cached = huntCache[item.code];
@@ -196,24 +199,24 @@ export default function LibraryScreen() {
               </View>
             )}
             <View style={[styles.diffBadge, { backgroundColor: `${diffColor}22` }]}>
-              <Text style={[styles.diffText, { color: diffColor }]}>{item.difficulty}</Text>
+              <Text style={[styles.diffText, { color: diffTextColor }]}>{item.difficulty}</Text>
             </View>
             <FontAwesome
               name={isExpanded ? 'chevron-up' : 'chevron-down'}
               size={12}
-              color={Colors.textMuted}
+              color={C.textMuted}
             />
           </View>
         </View>
 
         <Text style={styles.cardLocation} numberOfLines={1}>
-          <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} /> {item.location}
+          <FontAwesome name="map-marker" size={12} color={C.textSecondary} /> {item.location}
         </Text>
 
         <View style={styles.cardMeta}>
           <Text style={styles.metaText}>{item.itemCount} stops</Text>
           <Text style={styles.metaDot}>·</Text>
-          <Text style={[styles.metaText, { color: Colors.gold }]}>{item.totalPoints} pts</Text>
+          <Text style={[styles.metaText, { color: C.goldText }]}>{item.totalPoints} pts</Text>
           {typeof item.routeDistanceMiles === 'number' && (
             <>
               <Text style={styles.metaDot}>·</Text>
@@ -221,7 +224,7 @@ export default function LibraryScreen() {
             </>
           )}
           <Text style={styles.metaDot}>·</Text>
-          <FontAwesome name="play-circle" size={11} color={Colors.textMuted} />
+          <FontAwesome name="play-circle" size={11} color={C.textMuted} />
           <Text style={styles.metaText}> {item.plays} plays</Text>
         </View>
 
@@ -239,7 +242,7 @@ export default function LibraryScreen() {
           <View style={styles.expandedContent}>
             <View style={styles.divider} />
             {isLoadingExpand ? (
-              <ActivityIndicator size="small" color={Colors.textMuted} style={styles.expandSpinner} />
+              <ActivityIndicator size="small" color={C.textMuted} style={styles.expandSpinner} />
             ) : cached ? (
               <View style={styles.itemList}>
                 {cached.items.map((it, idx) => (
@@ -342,11 +345,11 @@ export default function LibraryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
       <View style={[styles.searchBar, { backgroundColor: C.card, borderColor: C.border }]}>
-        <FontAwesome name="search" size={14} color={Colors.textMuted} />
+        <FontAwesome name="search" size={14} color={C.textMuted} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search by title or city…"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={C.textMuted}
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
@@ -354,7 +357,7 @@ export default function LibraryScreen() {
           returnKeyType="search"
           accessibilityLabel="Search library hunts"
         />
-        {loading && <ActivityIndicator size="small" color={Colors.textMuted} />}
+        {loading && <ActivityIndicator size="small" color={C.textMuted} />}
       </View>
 
       <View style={styles.filterBar}>
@@ -431,15 +434,15 @@ export default function LibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
 
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     borderRadius: 14,
     marginHorizontal: 16,
     marginTop: 8,
@@ -451,24 +454,24 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.text,
+    color: C.text,
     padding: 0,
   },
 
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   challengeCard: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: `${Colors.gold}35`,
+    borderColor: `${C.gold}35`,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 12,
   },
-  challengeBadge: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase', marginBottom: 8 },
-  challengeTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 6 },
-  challengeSubtitle: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+  challengeBadge: { fontSize: 11, fontWeight: '800', color: C.goldText, textTransform: 'uppercase', marginBottom: 8 },
+  challengeTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 6 },
+  challengeSubtitle: { fontSize: 13, color: C.textSecondary, lineHeight: 19 },
   filterBar: {
     flexDirection: 'row',
     gap: 8,
@@ -480,37 +483,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   filterChipActive: {
-    backgroundColor: `${Colors.gold}16`,
-    borderColor: `${Colors.gold}50`,
+    backgroundColor: `${C.gold}16`,
+    borderColor: `${C.gold}50`,
   },
-  filterChipText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
-  filterChipTextActive: { color: Colors.gold },
+  filterChipText: { color: C.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  filterChipTextActive: { color: C.goldText },
 
   list: { padding: 16, paddingBottom: 40, flexGrow: 1 },
   featuredSection: { marginBottom: 12 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: Colors.textSecondary,
+    color: C.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 10,
   },
 
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
-  cardExpanded: { borderColor: Colors.gold },
+  cardExpanded: { borderColor: C.gold },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,63 +523,63 @@ const styles = StyleSheet.create({
   },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, flex: 1 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1 },
   diffBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8 },
   diffText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   featureBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: Colors.goldLight,
+    backgroundColor: C.goldLight,
   },
-  featureBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
+  featureBadgeText: { fontSize: 10, fontWeight: '800', color: C.goldText, textTransform: 'uppercase' },
   freshBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: Colors.greenLight,
+    backgroundColor: C.greenLight,
   },
-  freshBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.green, textTransform: 'uppercase' },
-  cardLocation: { fontSize: 13, color: Colors.textSecondary, marginBottom: 8 },
+  freshBadgeText: { fontSize: 10, fontWeight: '800', color: C.green, textTransform: 'uppercase' },
+  cardLocation: { fontSize: 13, color: C.textSecondary, marginBottom: 8 },
 
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  metaDot: { fontSize: 12, color: Colors.textMuted },
+  metaText: { fontSize: 12, color: C.textSecondary, fontWeight: '500' },
+  metaDot: { fontSize: 12, color: C.textMuted },
   tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 },
   tagPill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
-  tagPillText: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  tagPillText: { color: C.textSecondary, fontSize: 11, fontWeight: '700' },
 
   expandedContent: { marginTop: 12 },
-  divider: { height: 1, backgroundColor: Colors.border, marginBottom: 12 },
+  divider: { height: 1, backgroundColor: C.border, marginBottom: 12 },
   expandSpinner: { marginBottom: 12 },
 
   itemList: { marginBottom: 14, gap: 6 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   itemIndex: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     textAlign: 'center', lineHeight: 22,
-    fontSize: 11, fontWeight: '700', color: Colors.textSecondary,
+    fontSize: 11, fontWeight: '700', color: C.textSecondary,
     flexShrink: 0,
   },
-  itemName: { fontSize: 14, color: Colors.text, flex: 1 },
+  itemName: { fontSize: 14, color: C.text, flex: 1 },
 
   playBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     borderRadius: 14,
     paddingVertical: 13,
-    shadowColor: Colors.gold,
+    shadowColor: C.gold,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -586,6 +589,6 @@ const styles = StyleSheet.create({
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 80 },
   emptyGoose: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 8, textAlign: 'center' },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8, textAlign: 'center' },
+  emptySubtitle: { fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

@@ -22,7 +22,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { useTheme } from '@/lib/useTheme';
 import { Hunt, QuickPreset } from '@/lib/types';
@@ -52,15 +52,17 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'done', label: 'Done' },
 ];
 
-const DIFFICULTY_COLOR: Record<string, string> = {
-  easy: Colors.green,
-  medium: Colors.gold,
-  hard: Colors.red,
+const DIFFICULTY_COLOR: Record<string, keyof AppTheme> = {
+  easy: 'green',
+  medium: 'gold',
+  hard: 'red',
 };
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
 
 function FloatingGoose() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const float = useRef(new Animated.Value(0)).current;
   const tilt = useRef(new Animated.Value(0)).current;
 
@@ -97,13 +99,15 @@ function FloatingGoose() {
 }
 
 function EmptyState() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={styles.empty}>
       <FloatingGoose />
       <Text style={styles.emptyTitle}>No hunts yet</Text>
       <Text style={styles.emptySubtitle}>
-        Tap <Text style={{ color: Colors.gold, fontWeight: '800' }}>New Hunt</Text> to build one,
-        or hit <Text style={{ color: Colors.gold, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
+        Tap <Text style={{ color: C.goldText, fontWeight: '800' }}>New Hunt</Text> to build one,
+        or hit <Text style={{ color: C.goldText, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
       </Text>
     </View>
   );
@@ -147,6 +151,7 @@ export default function HomeScreen() {
   const deleteHunt = useAppStore((s) => s.deleteHunt);
   const loadHunts = useAppStore((s) => s.loadHunts);
   const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -158,11 +163,11 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="My stats"
         >
-          <FontAwesome name="trophy" size={20} color={Colors.gold} />
+          <FontAwesome name="trophy" size={20} color={C.gold} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, router]);
+  }, [navigation, router, C]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -371,12 +376,14 @@ export default function HomeScreen() {
   const renderHunt = ({ item, index }: { item: Hunt; index: number }) => {
     const pct = completionPct(item);
     const done = pct === 100;
-    const diffColor = DIFFICULTY_COLOR[item.difficulty];
+    const diffKey = DIFFICULTY_COLOR[item.difficulty] ?? 'gold';
+    const diffColor = C[diffKey];
+    const diffTextColor = diffKey === 'gold' ? C.goldText : diffColor;
 
     return (
       <ReAnimated.View entering={FadeInDown.delay(index * 60).duration(350)}>
       <TouchableOpacity
-        style={[styles.card, { borderColor: done ? Colors.green : Colors.border }]}
+        style={[styles.card, { borderColor: done ? C.green : C.border }]}
         onPress={() => router.push(`/hunt/${item.id}`)}
         onLongPress={() => handleDelete(item)}
         activeOpacity={0.75}
@@ -386,22 +393,22 @@ export default function HomeScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-            {done && <FontAwesome name="check-circle" size={16} color={Colors.green} />}
+            {done && <FontAwesome name="check-circle" size={16} color={C.green} />}
           </View>
           <View style={styles.cardBadges}>
             <View style={[styles.diffBadge, { backgroundColor: `${diffColor}22` }]}>
-              <Text style={[styles.diffText, { color: diffColor }]}>{item.difficulty}</Text>
+              <Text style={[styles.diffText, { color: diffTextColor }]}>{item.difficulty}</Text>
             </View>
           </View>
         </View>
 
         <Text style={styles.cardLocation} numberOfLines={1}>
-          <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} /> {item.location}
+          <FontAwesome name="map-marker" size={12} color={C.textSecondary} /> {item.location}
         </Text>
 
         <View style={styles.progressRow}>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: done ? Colors.green : Colors.gold }]} />
+            <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: done ? C.green : C.gold }]} />
           </View>
           <Text style={styles.progressText}>{pct}%</Text>
         </View>
@@ -410,7 +417,7 @@ export default function HomeScreen() {
           <Text style={styles.cardMeta}>
             {item.items.filter((i) => i.completed).length}/{item.items.length} items
           </Text>
-          <Text style={[styles.cardMeta, { color: Colors.gold }]}>
+          <Text style={[styles.cardMeta, { color: C.goldText }]}>
             {item.earnedPoints}/{item.totalPoints} pts
           </Text>
         </View>
@@ -501,7 +508,7 @@ export default function HomeScreen() {
         >
           <View style={styles.challengeHeroTop}>
             <Text style={styles.challengeHeroBadge}>{weeklyChallenge.badge ?? 'Weekly Challenge'}</Text>
-            <FontAwesome name="bolt" size={14} color={Colors.gold} />
+            <FontAwesome name="bolt" size={14} color={C.gold} />
           </View>
           <Text style={styles.challengeHeroTitle}>{weeklyChallenge.title}</Text>
           <Text style={styles.challengeHeroSubtitle}>
@@ -549,11 +556,11 @@ export default function HomeScreen() {
       <View style={{ flex: 1 }}>
       {hunts.length > 0 && (
         <View style={[styles.searchBar, { backgroundColor: C.card, borderColor: C.border }]}>
-          <FontAwesome name="search" size={14} color={Colors.textMuted} style={styles.searchIcon} />
+          <FontAwesome name="search" size={14} color={C.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search hunts…"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={C.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
@@ -568,7 +575,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Clear search"
             >
-              <FontAwesome name="times-circle" size={15} color={Colors.textMuted} />
+              <FontAwesome name="times-circle" size={15} color={C.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -610,7 +617,7 @@ export default function HomeScreen() {
         >
           {gooseLooseLoading ? (
             <>
-              <ActivityIndicator size="small" color={Colors.gold} />
+              <ActivityIndicator size="small" color={C.gold} />
               <Text style={styles.gooseLooseText} numberOfLines={1}>{gooseLooseMsg}</Text>
             </>
           ) : (
@@ -642,7 +649,7 @@ export default function HomeScreen() {
           accessibilityRole="button"
           accessibilityLabel="More options"
         >
-          <FontAwesome name="ellipsis-h" size={18} color={Colors.textSecondary} />
+          <FontAwesome name="ellipsis-h" size={18} color={C.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -669,7 +676,7 @@ export default function HomeScreen() {
             <TextInput
               style={styles.codeInput}
               placeholder="E.g. G7X2KP"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={joinCode}
               onChangeText={(t) => setJoinCode(t.toUpperCase().slice(0, 6))}
               autoCapitalize="characters"
@@ -680,7 +687,7 @@ export default function HomeScreen() {
             <TextInput
               style={[styles.modalInput, { marginBottom: 20 }]}
               placeholder={`Your name (e.g. ${randomPlayerName()})`}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={joinPlayerName}
               onChangeText={setJoinPlayerName}
               maxLength={30}
@@ -712,16 +719,16 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg, flexDirection: 'column' },
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg, flexDirection: 'column' },
   list: { padding: 16, paddingBottom: 16, flexGrow: 1 },
 
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     borderRadius: 14,
     marginHorizontal: 16,
     marginTop: 8,
@@ -734,7 +741,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.text,
+    color: C.text,
     padding: 0,
   },
 
@@ -748,54 +755,54 @@ const styles = StyleSheet.create({
   filterPills: { flexDirection: 'row', gap: 6 },
   filterPill: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
   },
-  filterPillActive: { borderColor: Colors.gold, backgroundColor: Colors.goldLight },
-  filterPillText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  filterPillTextActive: { color: Colors.gold },
+  filterPillActive: { borderColor: C.gold, backgroundColor: C.goldLight },
+  filterPillText: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
+  filterPillTextActive: { color: C.goldText },
   discoveryHeader: { marginBottom: 16, gap: 14 },
   discoveryLoading: { paddingVertical: 12, alignItems: 'center' },
   challengeHero: {
     borderRadius: 18,
     padding: 18,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: `${Colors.gold}35`,
+    borderColor: `${C.gold}35`,
   },
   challengeHeroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   challengeHeroBadge: {
     fontSize: 11,
     fontWeight: '800',
-    color: Colors.gold,
+    color: C.goldText,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  challengeHeroTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  challengeHeroSubtitle: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21, marginBottom: 12 },
-  challengeHeroCta: { fontSize: 13, fontWeight: '700', color: Colors.gold },
+  challengeHeroTitle: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 8 },
+  challengeHeroSubtitle: { fontSize: 14, color: C.textSecondary, lineHeight: 21, marginBottom: 12 },
+  challengeHeroCta: { fontSize: 13, fontWeight: '700', color: C.goldText },
   featuredSection: { gap: 10 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionHeadTitle: { fontSize: 13, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionHeadLink: { fontSize: 12, fontWeight: '700', color: Colors.gold },
+  sectionHeadTitle: { fontSize: 13, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeadLink: { fontSize: 12, fontWeight: '700', color: C.goldText },
   featuredList: { gap: 10, paddingRight: 4 },
   featuredCard: {
     width: 210,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   featuredCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
-  featuredBadge: { fontSize: 10, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
-  featuredDiff: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-  featuredTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  featuredSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+  featuredBadge: { fontSize: 10, fontWeight: '800', color: C.goldText, textTransform: 'uppercase' },
+  featuredDiff: { fontSize: 10, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase' },
+  featuredTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginBottom: 8 },
+  featuredSubtitle: { fontSize: 12, color: C.textSecondary, lineHeight: 18 },
   emptyFiltered: { alignItems: 'center', paddingTop: 40 },
-  emptyFilteredText: { fontSize: 15, color: Colors.textMuted },
+  emptyFilteredText: { fontSize: 15, color: C.textMuted },
 
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -803,24 +810,24 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, flex: 1 },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: C.text, flex: 1 },
   cardBadges: { alignItems: 'flex-end', gap: 4 },
   diffBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
   diffText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  cardLocation: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  cardLocation: { fontSize: 13, color: C.textSecondary, marginBottom: 12 },
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  progressBar: { flex: 1, height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
+  progressBar: { flex: 1, height: 6, backgroundColor: C.surface, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },
-  progressText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, width: 34, textAlign: 'right' },
+  progressText: { fontSize: 12, fontWeight: '700', color: C.textSecondary, width: 34, textAlign: 'right' },
 
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between' },
-  cardMeta: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  cardMeta: { fontSize: 12, color: C.textSecondary, fontWeight: '500' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 80 },
   emptyGoose: { width: 120, height: 120, borderRadius: 28, marginBottom: 20 },
-  emptyTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  emptySubtitle: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 8 },
+  emptySubtitle: { fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22 },
 
   bottomBar: {
     flexDirection: 'row',
@@ -828,8 +835,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.bg,
+    borderTopColor: C.border,
+    backgroundColor: C.bg,
     alignItems: 'stretch',
   },
 
@@ -842,12 +849,12 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: Colors.gold,
-    backgroundColor: Colors.goldLight,
+    borderColor: C.gold,
+    backgroundColor: C.goldLight,
     overflow: 'hidden',
   },
   gooseLooseEmoji: { width: 26, height: 26, borderRadius: 7 },
-  gooseLooseText: { fontSize: 14, fontWeight: '800', color: Colors.gold, flexShrink: 1 },
+  gooseLooseText: { fontSize: 14, fontWeight: '800', color: C.goldText, flexShrink: 1 },
 
   fab: {
     flex: 1,
@@ -857,8 +864,8 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 18,
     borderRadius: 16,
-    backgroundColor: Colors.gold,
-    shadowColor: Colors.gold,
+    backgroundColor: C.gold,
+    shadowColor: C.gold,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -869,9 +876,9 @@ const styles = StyleSheet.create({
   moreBtn: {
     width: 52,
     borderRadius: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -881,32 +888,32 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 36,
-    borderTopWidth: 1, borderColor: Colors.border,
+    borderTopWidth: 1, borderColor: C.border,
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: C.textSecondary, marginBottom: 16 },
   codeInput: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 14, padding: 16, fontSize: 28, color: Colors.text,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, padding: 16, fontSize: 28, color: C.text,
     textAlign: 'center', letterSpacing: 8, fontWeight: '800',
     marginBottom: 12,
   },
   modalInput: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 14, padding: 14, fontSize: 15, color: Colors.text,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, padding: 14, fontSize: 15, color: C.text,
   },
   modalButtons: { flexDirection: 'row', gap: 10 },
   modalCancelBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
     alignItems: 'center',
   },
-  modalCancelText: { fontSize: 15, fontWeight: '700', color: Colors.textSecondary },
+  modalCancelText: { fontSize: 15, fontWeight: '700', color: C.textSecondary },
   modalConfirmBtn: {
     flex: 2, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center',
   },
   modalConfirmText: { fontSize: 15, fontWeight: '800', color: '#000' },
 });

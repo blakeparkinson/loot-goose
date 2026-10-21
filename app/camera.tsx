@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,11 @@ import Animated, { useSharedValue, useAnimatedProps, runOnJS } from 'react-nativ
 import { File } from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import Colors from '@/constants/Colors';
+import { AppTheme, Brand } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 import { useAppStore } from '@/lib/store';
 import { verifyPhoto, completeCoopItem } from '@/lib/api';
 import { persistHuntPhoto } from '@/lib/photos';
@@ -30,6 +32,8 @@ import { persistHuntPhoto } from '@/lib/photos';
 const ReanimatedCamera = Animated.createAnimatedComponent(Camera);
 
 export default function CameraScreen() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const {
     huntId,
     itemId,
@@ -119,9 +123,9 @@ export default function CameraScreen() {
   if ((!hunt && !isCoopMode) || !item) {
     return (
       <View style={styles.centered}>
-        <Text style={{ color: Colors.text }}>Item not found.</Text>
+        <Text style={{ color: C.text }}>Item not found.</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={{ color: Colors.gold }}>Go Back</Text>
+          <Text style={{ color: C.goldText }}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -136,8 +140,8 @@ export default function CameraScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <FontAwesome name="chevron-left" size={14} color={Colors.text} />
-          <Text style={{ color: Colors.text, fontSize: 15, fontWeight: '600' }}>Back</Text>
+          <FontAwesome name="chevron-left" size={14} color={C.text} />
+          <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.permText}>Camera access is needed to capture hunt items.</Text>
         <TouchableOpacity style={styles.permBtn} onPress={requestPermission} accessibilityRole="button" accessibilityLabel="Grant camera access">
@@ -150,8 +154,8 @@ export default function CameraScreen() {
   if (!device) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.gold} size="large" />
-        <Text style={{ color: Colors.textSecondary, marginTop: 12 }}>Loading camera...</Text>
+        <ActivityIndicator color={C.gold} size="large" />
+        <Text style={{ color: C.textSecondary, marginTop: 12 }}>Loading camera...</Text>
       </View>
     );
   }
@@ -225,8 +229,10 @@ export default function CameraScreen() {
     setCapturedUri(null);
   };
 
+  // The viewfinder and the captured photo stay dark in both themes, so the status bar does too.
   const topBar = (
     <View style={[styles.topOverlay, { paddingTop: insets.top + 12 }]}>
+      <StatusBar style="light" />
       <TouchableOpacity
         style={styles.closeBtn}
         onPress={() => router.back()}
@@ -246,7 +252,7 @@ export default function CameraScreen() {
   const summaryText = item.lore ?? item.hint;
   const summaryBar = summaryText ? (
     <View style={styles.summaryBar}>
-      <FontAwesome name="book" size={13} color={Colors.gold} />
+      <FontAwesome name="book" size={13} color={Brand.lootGold} />
       <Text style={styles.summaryText} numberOfLines={3}>{summaryText}</Text>
     </View>
   ) : null;
@@ -311,7 +317,7 @@ export default function CameraScreen() {
           <View style={[styles.captureRow, { bottom: insets.bottom + 24 }]}>
             {isCapturing ? (
               <View style={styles.captureBtnOuter}>
-                <ActivityIndicator color={Colors.gold} size="large" />
+                <ActivityIndicator color={Brand.lootGold} size="large" />
               </View>
             ) : (
               <TouchableOpacity
@@ -331,11 +337,12 @@ export default function CameraScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  // Everything over the camera feed or the captured photo uses fixed dark-on-photo colours, not the theme.
   container: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },
   frozenPhoto: { ...StyleSheet.absoluteFillObject },
-  centered: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   topOverlay: {
     flexDirection: 'row',
@@ -355,7 +362,7 @@ const styles = StyleSheet.create({
   },
   itemBadge: { flex: 1, gap: 2 },
   itemBadgeName: { fontSize: 16, fontWeight: '800', color: '#fff' },
-  itemBadgePoints: { fontSize: 13, color: Colors.gold, fontWeight: '700' },
+  itemBadgePoints: { fontSize: 13, color: Brand.lootGold, fontWeight: '700' },
 
   summaryBar: {
     flexDirection: 'row',
@@ -366,9 +373,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: `${Colors.gold}44`,
+    borderColor: `${Brand.lootGold}44`,
   },
-  summaryText: { flex: 1, color: Colors.gold, fontSize: 13, lineHeight: 18 },
+  summaryText: { flex: 1, color: Brand.lootGold, fontSize: 13, lineHeight: 18 },
 
   zoomBadge: {
     alignSelf: 'center',
@@ -432,8 +439,8 @@ const styles = StyleSheet.create({
   },
   resultBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 
-  permText: { color: Colors.textSecondary, textAlign: 'center', marginBottom: 20, fontSize: 15 },
-  permBtn: { backgroundColor: Colors.gold, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
+  permText: { color: C.textSecondary, textAlign: 'center', marginBottom: 20, fontSize: 15 },
+  permBtn: { backgroundColor: C.gold, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
   permBtnText: { fontWeight: '800', color: '#000', fontSize: 15 },
   backBtn: { marginTop: 16 },
 });

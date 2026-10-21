@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useCallback, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useRef, useState, useMemo } from 'react';
 import { Animated, Text, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -24,13 +25,15 @@ export const Toast = {
   },
 };
 
-const TYPE_COLORS: Record<ToastType, string> = {
-  success: Colors.green,
-  error: Colors.red,
-  info: Colors.blue,
+const TYPE_COLORS: Record<ToastType, keyof AppTheme> = {
+  success: 'green',
+  error: 'red',
+  info: 'blue',
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<ToastState | null>(null);
   const translateY = useRef(new Animated.Value(-100)).current;
@@ -75,7 +78,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           accessibilityRole="alert"
           accessibilityLiveRegion="assertive"
         >
-          <View style={[styles.toast, { borderLeftColor: TYPE_COLORS[toast.type] }]}>
+          <View style={[styles.toast, { borderLeftColor: C[TYPE_COLORS[toast.type]] }]}>
             <Text style={styles.text}>{toast.message}</Text>
           </View>
         </Animated.View>
@@ -88,7 +91,7 @@ export function useToast(): ShowFn {
   return useContext(ToastContext);
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppTheme) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: 16,
@@ -97,8 +100,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toast: {
-    backgroundColor: 'rgba(22,27,34,0.95)',
+    backgroundColor: C.card,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderLeftWidth: 4,
@@ -111,7 +116,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   text: {
-    color: '#E6EDF3',
+    color: C.text,
     fontSize: 14,
     fontWeight: '600',
   },

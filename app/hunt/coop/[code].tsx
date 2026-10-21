@@ -14,7 +14,8 @@ import {
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 import { useAppStore } from '@/lib/store';
 import { Hunt, HuntItem } from '@/lib/types';
 import { CoopCompletion, joinCoopSession } from '@/lib/api';
@@ -32,6 +33,8 @@ export function randomPlayerName(): string {
 }
 
 export default function CoopScreen() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { code, playerName, huntId } = useLocalSearchParams<{
     code: string;
     playerName: string;
@@ -127,7 +130,7 @@ export default function CoopScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.green} />
+        <ActivityIndicator size="large" color={C.green} />
         <Text style={styles.loadingText}>Joining co-op session…</Text>
       </View>
     );
@@ -136,9 +139,9 @@ export default function CoopScreen() {
   if (connectionStatus === 'error' || !effectiveHunt) {
     return (
       <View style={styles.centered}>
-        <Text style={{ color: Colors.red, fontWeight: '700', marginBottom: 12 }}>Could not load hunt</Text>
+        <Text style={{ color: C.red, fontWeight: '700', marginBottom: 12 }}>Could not load hunt</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: Colors.gold }}>Go Back</Text>
+          <Text style={{ color: C.goldText }}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -150,9 +153,9 @@ export default function CoopScreen() {
   const renderItem = ({ item }: { item: MergedItem }) => (
     <View style={[styles.itemCard, item.completed && styles.itemCardDone]}>
       <View style={styles.itemLeft}>
-        <View style={[styles.itemNumber, item.completed && { backgroundColor: Colors.greenLight }]}>
+        <View style={[styles.itemNumber, item.completed && { backgroundColor: C.greenLight }]}>
           {item.completed ? (
-            <FontAwesome name="check" size={14} color={Colors.green} />
+            <FontAwesome name="check" size={14} color={C.green} />
           ) : (
             <Text style={styles.itemNumberText}>
               {mergedItems.indexOf(item) + 1}
@@ -166,18 +169,18 @@ export default function CoopScreen() {
           <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
           {!item.completed && item.sublocation && (
             <Text style={styles.itemSublocation} numberOfLines={1}>
-              <FontAwesome name="map-pin" size={11} color={Colors.gold} /> {item.sublocation}
+              <FontAwesome name="map-pin" size={11} color={C.gold} /> {item.sublocation}
             </Text>
           )}
           {item.completed && item.completedBy && (
             <Text style={styles.completedBy}>
-              <FontAwesome name="user" size={10} color={Colors.green} /> {item.completedBy}
+              <FontAwesome name="user" size={10} color={C.green} /> {item.completedBy}
             </Text>
           )}
         </View>
       </View>
       <View style={styles.itemRight}>
-        <Text style={[styles.itemPoints, { color: item.completed ? Colors.green : Colors.gold }]}>
+        <Text style={[styles.itemPoints, { color: item.completed ? C.green : C.goldText }]}>
           {item.points}pts
         </Text>
         {!item.completed && (
@@ -203,7 +206,7 @@ export default function CoopScreen() {
               });
             }}
           >
-            <FontAwesome name="camera" size={14} color={Colors.gold} />
+            <FontAwesome name="camera" size={14} color={C.gold} />
           </TouchableOpacity>
         )}
       </View>
@@ -227,7 +230,7 @@ export default function CoopScreen() {
           accessibilityRole="button"
           accessibilityLabel="Share co-op code"
         >
-          <FontAwesome name="share-alt" size={13} color={Colors.textSecondary} />
+          <FontAwesome name="share-alt" size={13} color={C.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -235,7 +238,7 @@ export default function CoopScreen() {
       <View style={styles.statsCard}>
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Text style={[styles.statValue, { color: Colors.gold }]}>{earnedPoints}</Text>
+            <Text style={[styles.statValue, { color: C.goldText }]}>{earnedPoints}</Text>
             <Text style={styles.statLabel}>Points</Text>
           </View>
           <View style={styles.statDivider} />
@@ -251,7 +254,7 @@ export default function CoopScreen() {
         </View>
 
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct === 100 ? Colors.green : Colors.gold }]} />
+          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct === 100 ? C.green : C.gold }]} />
         </View>
 
         {/* Player chips */}
@@ -293,85 +296,85 @@ export default function CoopScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { color: Colors.textSecondary, fontSize: 15, marginTop: 8 },
+  loadingText: { color: C.textSecondary, fontSize: 15, marginTop: 8 },
   list: { padding: 16, paddingBottom: 40 },
 
   liveBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: `${Colors.green}18`,
+    backgroundColor: `${C.green}18`,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: `${Colors.green}30`,
+    borderColor: `${C.green}30`,
   },
   liveDot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.green,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: C.green,
   },
-  liveText: { fontSize: 12, fontWeight: '800', color: Colors.green, letterSpacing: 1 },
-  liveCode: { flex: 1, fontSize: 18, fontWeight: '900', color: Colors.text, letterSpacing: 4 },
+  liveText: { fontSize: 12, fontWeight: '800', color: C.green, letterSpacing: 1 },
+  liveCode: { flex: 1, fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: 4 },
   shareCodeBtn: { padding: 4 },
 
   statsCard: {
-    backgroundColor: Colors.card, borderRadius: 16, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.card, borderRadius: 16, padding: 16,
+    marginBottom: 16, borderWidth: 1, borderColor: C.border,
   },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginBottom: 14 },
   stat: { alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 22, fontWeight: '800', color: Colors.text },
-  statLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  statDivider: { width: 1, height: 32, backgroundColor: Colors.border },
+  statValue: { fontSize: 22, fontWeight: '800', color: C.text },
+  statLabel: { fontSize: 12, color: C.textSecondary, fontWeight: '500' },
+  statDivider: { width: 1, height: 32, backgroundColor: C.border },
 
-  progressBar: { height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
+  progressBar: { height: 6, backgroundColor: C.surface, borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
   progressFill: { height: '100%', borderRadius: 3 },
 
   playerChips: { marginTop: 4 },
   playerChip: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
   },
-  playerChipSelf: { borderColor: `${Colors.gold}55`, backgroundColor: Colors.goldLight },
-  playerChipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-  playerChipTextSelf: { color: Colors.gold },
+  playerChipSelf: { borderColor: `${C.gold}55`, backgroundColor: C.goldLight },
+  playerChipText: { fontSize: 12, fontWeight: '600', color: C.textSecondary },
+  playerChipTextSelf: { color: C.goldText },
 
   allDoneBanner: {
-    backgroundColor: Colors.greenLight, borderRadius: 12, padding: 14,
-    alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: `${Colors.green}44`,
+    backgroundColor: C.greenLight, borderRadius: 12, padding: 14,
+    alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: `${C.green}44`,
   },
-  allDoneText: { color: Colors.green, fontWeight: '800', fontSize: 15 },
+  allDoneText: { color: C.green, fontWeight: '800', fontSize: 15 },
 
   itemsHeading: {
-    fontSize: 13, fontWeight: '700', color: Colors.textSecondary,
+    fontSize: 13, fontWeight: '700', color: C.textSecondary,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
   },
 
   itemCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14, marginBottom: 10,
-    flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1, borderColor: C.border,
   },
   itemCardDone: { opacity: 0.65 },
   itemLeft: { flex: 1, flexDirection: 'row', gap: 12 },
   itemNumber: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surface,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: C.surface,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  itemNumberText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 14 },
+  itemNumberText: { color: C.textSecondary, fontWeight: '700', fontSize: 14 },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
-  itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
-  itemSublocation: { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
-  completedBy: { fontSize: 11, color: Colors.green, marginTop: 2 },
+  itemName: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 3 },
+  itemDesc: { fontSize: 13, color: C.textSecondary, lineHeight: 18, marginBottom: 4 },
+  itemSublocation: { fontSize: 12, color: C.textSecondary, marginBottom: 3 },
+  completedBy: { fontSize: 11, color: C.green, marginTop: 2 },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },
   itemPoints: { fontSize: 13, fontWeight: '800' },
   captureBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.goldLight,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: C.goldLight,
     alignItems: 'center', justifyContent: 'center',
   },
 });
