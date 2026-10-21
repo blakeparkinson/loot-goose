@@ -46,7 +46,7 @@ EAS builds are configured in `eas.json` with development, preview, and productio
 
 - TypeScript strict mode; path alias `@/*` maps to project root
 - `.npmrc` sets `legacy-peer-deps=true` (required for install)
-- Dark theme colors defined in `constants/Colors.ts`
+- Theme colors (`DarkTheme`, `LightTheme`) are in `constants/Colors.ts`. Components read the active one with `const C = useTheme()` (before any early return) and build styles with `const styles = useMemo(() => makeStyles(C), [C])`; don't create theme-coloured styles at module scope
 - `BRAND.md` is the brief for the goose character, icon, palette and voice; read it before touching art or copy
 - Environment variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_MAPS_ANDROID_API_KEY`
 - Haptics feedback for user interactions

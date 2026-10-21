@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import Colors from '@/constants/Colors';
+import { DarkTheme } from '@/constants/Colors';
 import GooseSplash from '@/components/GooseSplash';
 import { ToastProvider } from '@/components/Toast';
 import { useAppStore } from '@/lib/store';
@@ -19,7 +19,7 @@ export default function RootLayout() {
   const migrateLegacyPhotos = useAppStore((s) => s.migrateLegacyPhotos);
   // Hooks stay above the splash early return, or the first render after the splash has more hooks and React throws.
   const C = useTheme();
-  const isDark = C.bg === Colors.bg;
+  const isDark = C === DarkTheme;
 
   useEffect(() => {
     const prepare = async () => {

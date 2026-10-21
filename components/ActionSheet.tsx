@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 
 export interface ActionSheetOption {
   label: string;
@@ -25,6 +26,8 @@ interface ActionSheetProps {
 }
 
 export function ActionSheet({ visible, title, options, onClose }: ActionSheetProps) {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const insets = useSafeAreaInsets();
 
   return (
@@ -59,7 +62,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                 <FontAwesome
                   name={opt.icon as any}
                   size={18}
-                  color={opt.destructive ? Colors.red : Colors.text}
+                  color={opt.destructive ? C.red : C.text}
                   style={styles.optionIcon}
                 />
               )}
@@ -88,25 +91,25 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   title: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: C.textSecondary,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -116,7 +119,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: C.border,
   },
   optionFirst: {
     borderTopWidth: 0,
@@ -128,22 +131,22 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
+    color: C.text,
     flex: 1,
   },
   optionTextDestructive: {
-    color: Colors.red,
+    color: C.red,
   },
   cancelBtn: {
     marginTop: 8,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     alignItems: 'center',
   },
   cancelText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: C.textSecondary,
   },
 });

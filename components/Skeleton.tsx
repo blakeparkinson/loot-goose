@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -8,7 +8,8 @@ import Animated, {
   interpolateColor,
   Easing,
 } from 'react-native-reanimated';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 
 interface SkeletonProps {
   width: number | string;
@@ -28,11 +29,16 @@ export function Skeleton({ width, height, borderRadius = 8, style }: SkeletonPro
     );
   }, [progress]);
 
+  const C = useTheme();
+  // Plain strings, so the worklet's closure (and so the style) changes when the theme does.
+  const from = C.surface;
+  const to = C.border;
+
   const animatedStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(
       progress.value,
       [0, 1],
-      [Colors.surface, Colors.border],
+      [from, to],
     ),
   }));
 
@@ -49,6 +55,8 @@ export function Skeleton({ width, height, borderRadius = 8, style }: SkeletonPro
 }
 
 export function HuntCardSkeleton() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -66,6 +74,8 @@ export function HuntCardSkeleton() {
 }
 
 export function ChallengeCardSkeleton() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={styles.challengeCard}>
       <Skeleton width={120} height={12} borderRadius={4} style={{ marginBottom: 12 }} />
@@ -77,6 +87,8 @@ export function ChallengeCardSkeleton() {
 }
 
 export function FeaturedStripSkeleton() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={styles.featuredStrip}>
       {[0, 1, 2].map((i) => (
@@ -90,14 +102,14 @@ export function FeaturedStripSkeleton() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppTheme) => StyleSheet.create({
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   cardTop: {
     flexDirection: 'row',
@@ -112,9 +124,9 @@ const styles = StyleSheet.create({
   challengeCard: {
     borderRadius: 18,
     padding: 18,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   featuredStrip: {
     flexDirection: 'row',
@@ -124,8 +136,8 @@ const styles = StyleSheet.create({
     width: 210,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
-import Colors from '@/constants/Colors';
+import { AppTheme, Brand } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 import { useAppStore } from '@/lib/store';
 import { publishHunt } from '@/lib/api';
 
@@ -41,6 +42,8 @@ function formatDuration(ms: number): string {
 }
 
 export default function HuntCompleteScreen() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -111,7 +114,7 @@ export default function HuntCompleteScreen() {
   if (!hunt) {
     return (
       <View style={styles.centered}>
-        <Text style={{ color: Colors.textSecondary }}>Hunt not found.</Text>
+        <Text style={{ color: C.textSecondary }}>Hunt not found.</Text>
       </View>
     );
   }
@@ -321,7 +324,7 @@ export default function HuntCompleteScreen() {
             <Text style={styles.huntTitle}>{hunt.title}</Text>
           </Animated.View>
           <Animated.View style={[styles.huntLocationRow, { opacity: fadeIn, transform: [{ translateY: titleSlide }] }]}>
-            <FontAwesome name="map-marker" size={12} color={Colors.textSecondary} />
+            <FontAwesome name="map-marker" size={12} color={C.textSecondary} />
             <Text style={styles.huntLocation}> {hunt.location}</Text>
           </Animated.View>
         </View>
@@ -394,7 +397,7 @@ export default function HuntCompleteScreen() {
           activeOpacity={0.8}
           disabled={isSaving}
         >
-          <FontAwesome name="image" size={16} color={Colors.gold} />
+          <FontAwesome name="image" size={16} color={C.gold} />
           <Text style={styles.shareBtnText}>{isSaving ? 'Saving…' : 'Save & Share Card'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -403,7 +406,7 @@ export default function HuntCompleteScreen() {
           activeOpacity={0.8}
           disabled={isPublishing}
         >
-          <FontAwesome name="share-alt" size={15} color={Colors.gold} />
+          <FontAwesome name="share-alt" size={15} color={C.gold} />
           <Text style={styles.secondaryBtnText}>{isPublishing ? 'Publishing…' : (hunt.publishedCode ? 'Share Hunt Code' : 'Publish & Share Hunt')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -411,7 +414,7 @@ export default function HuntCompleteScreen() {
           onPress={handleRemix}
           activeOpacity={0.8}
         >
-          <FontAwesome name="refresh" size={15} color={Colors.gold} />
+          <FontAwesome name="refresh" size={15} color={C.gold} />
           <Text style={styles.secondaryBtnText}>Remix This Hunt</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -429,8 +432,8 @@ export default function HuntCompleteScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+const makeStyles = (C: AppTheme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingBottom: 120 },
 
@@ -445,12 +448,12 @@ const styles = StyleSheet.create({
   // Static recap card styles
   recapCard: {
     width: CARD_WIDTH,
-    backgroundColor: Colors.bg,
+    backgroundColor: C.bg,
     paddingBottom: 24,
   },
   recapAccent: {
     height: 4,
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     marginBottom: 20,
   },
   recapBrandRow: {
@@ -460,7 +463,7 @@ const styles = StyleSheet.create({
   recapBrandText: {
     fontSize: 13,
     fontWeight: '800',
-    color: Colors.gold,
+    color: C.goldText,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
@@ -473,35 +476,35 @@ const styles = StyleSheet.create({
   recapComplete: {
     fontSize: 22,
     fontWeight: '900',
-    color: Colors.green,
+    color: C.green,
     letterSpacing: 2,
     marginBottom: 6,
   },
   recapTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    color: C.text,
     textAlign: 'center',
     marginBottom: 4,
   },
   recapLocation: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: C.textSecondary,
   },
   recapStatsCard: {
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: `${Colors.gold}44`,
+    borderColor: `${C.gold}44`,
   },
   recapStat: { flex: 1, alignItems: 'center', gap: 3 },
-  recapStatVal: { fontSize: 22, fontWeight: '900', color: Colors.gold },
-  recapStatLbl: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase' },
-  recapStatDivider: { width: 1, backgroundColor: Colors.border },
+  recapStatVal: { fontSize: 22, fontWeight: '900', color: C.goldText },
+  recapStatLbl: { fontSize: 11, fontWeight: '600', color: C.textSecondary, textTransform: 'uppercase' },
+  recapStatDivider: { width: 1, backgroundColor: C.border },
   recapHighlights: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -513,11 +516,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
-  recapHighlightLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  recapHighlightLabel: { fontSize: 11, fontWeight: '700', color: C.textSecondary },
   recapCollage: {
     paddingHorizontal: 16,
     gap: 6,
@@ -528,7 +531,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
   },
   recapGridRow: {
     flexDirection: 'row',
@@ -540,7 +543,7 @@ const styles = StyleSheet.create({
     height: CARD_GRID_CELL,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
   },
   recapGridOverlay: {
     position: 'absolute',
@@ -566,12 +569,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   recapPhotoName: { flex: 1, fontSize: 12, fontWeight: '700', color: '#fff', lineHeight: 15 },
-  recapPhotoPoints: { fontSize: 11, fontWeight: '800', color: Colors.gold },
+  // On the dark photo scrim in both themes.
+  recapPhotoPoints: { fontSize: 11, fontWeight: '800', color: Brand.lootGold },
   recapWatermark: {
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.textMuted,
+    color: C.textMuted,
     letterSpacing: 0.5,
   },
 
@@ -589,8 +593,8 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 100,
     borderWidth: 2,
-    borderColor: Colors.green,
-    shadowColor: Colors.green,
+    borderColor: C.green,
+    shadowColor: C.green,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 28,
@@ -602,7 +606,7 @@ const styles = StyleSheet.create({
     height: 240,
     borderRadius: 120,
     borderWidth: 1.5,
-    borderColor: Colors.green,
+    borderColor: C.green,
   },
   starTL: { position: 'absolute', top: 52, left: '12%' },
   starTLText: { fontSize: 24 },
@@ -616,42 +620,42 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 28,
     fontWeight: '900',
-    color: Colors.green,
+    color: C.green,
     letterSpacing: 2,
     marginBottom: 8,
   },
   huntTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.text,
+    color: C.text,
     textAlign: 'center',
     marginBottom: 6,
   },
   huntLocationRow: { flexDirection: 'row', alignItems: 'center' },
-  huntLocation: { fontSize: 14, color: Colors.textSecondary },
+  huntLocation: { fontSize: 14, color: C.textSecondary },
 
   statsCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     marginHorizontal: 16,
     marginBottom: 28,
     padding: 20,
     borderWidth: 1,
-    borderColor: `${Colors.green}44`,
+    borderColor: `${C.green}44`,
   },
   statItem: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 26, fontWeight: '900', color: Colors.gold },
-  statLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
-  statDivider: { width: 1, backgroundColor: Colors.border },
+  statValue: { fontSize: 26, fontWeight: '900', color: C.goldText },
+  statLabel: { fontSize: 12, color: C.textSecondary, fontWeight: '600' },
+  statDivider: { width: 1, backgroundColor: C.border },
   highlightsCard: {
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderRadius: 16,
     marginHorizontal: 16,
     marginBottom: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     gap: 8,
   },
   highlightPill: {
@@ -659,15 +663,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: Colors.goldLight,
+    backgroundColor: C.goldLight,
   },
-  highlightPillText: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
-  highlightText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  highlightPillText: { fontSize: 11, fontWeight: '800', color: C.goldText, textTransform: 'uppercase' },
+  highlightText: { fontSize: 14, color: C.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: C.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginHorizontal: 16,
@@ -684,7 +688,7 @@ const styles = StyleSheet.create({
     height: PHOTO_SIZE,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
   },
   photo: { width: '100%', height: '100%' },
   photoOverlay: {
@@ -700,7 +704,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   photoName: { flex: 1, fontSize: 11, fontWeight: '700', color: '#fff', lineHeight: 14 },
-  photoPoints: { fontSize: 11, fontWeight: '800', color: Colors.gold },
+  // On the dark photo scrim in both themes.
+  photoPoints: { fontSize: 11, fontWeight: '800', color: Brand.lootGold },
 
   actions: {
     position: 'absolute',
@@ -708,9 +713,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
-    backgroundColor: Colors.bg,
+    backgroundColor: C.bg,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: C.border,
     gap: 10,
   },
   shareBtn: {
@@ -721,9 +726,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: Colors.gold,
+    borderColor: C.gold,
   },
-  shareBtnText: { fontSize: 15, fontWeight: '700', color: Colors.gold },
+  shareBtnText: { fontSize: 15, fontWeight: '700', color: C.goldText },
   secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -731,13 +736,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
-  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: C.text },
   doneBtn: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',

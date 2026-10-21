@@ -68,7 +68,7 @@ The palette is in code: `Brand` in `constants/Colors.ts` holds these values, and
 
 - The dark surfaces and the functional green (verified) and red (rejected) stay.
 - The rest of `constants/Colors.ts` is GitHub's Primer palette. Its blue and purple are not brand colors: keep them out of the art and marketing. Their decorative uses in the UI are now gold tints (`gold` on `goldLight`). Blue and purple remain only where the hue carries meaning: the route line on the scout map (it has to stand out from the map's own yellow and orange roads), the info toast (blue next to green success and red error), and the profile rank tiers (each tier has its own color, gold at the top).
-- Deep gold on white is about 2.9:1, below the 4.5:1 that small text needs. In light mode, use it for fills, borders and icons, and keep small text in `text` or `textSecondary`.
+- Deep gold on white is about 2.9:1, below the 4.5:1 that small text needs. In light mode, use it for fills, borders and icons, and keep small text in `text` or `textSecondary`. The `goldText` token does this: loot gold in dark mode, the text colour in light mode.
 
 ## Typography
 

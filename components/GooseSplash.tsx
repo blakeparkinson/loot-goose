@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, Easing, Image } from 'react-native';
-import Colors, { Brand } from '@/constants/Colors';
+import { Brand, DarkTheme } from '@/constants/Colors';
 
 interface Props {
   onFinished: () => void;
@@ -153,6 +153,7 @@ export default function GooseSplash({ onFinished }: Props) {
   );
 }
 
+// The splash is always on badge navy, whatever the theme, so it uses fixed brand colours.
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
@@ -169,8 +170,8 @@ const styles = StyleSheet.create({
     height: 230,
     borderRadius: 115,
     borderWidth: 2.5,
-    borderColor: Colors.gold,
-    shadowColor: Colors.gold,
+    borderColor: Brand.lootGold,
+    shadowColor: Brand.lootGold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 30,
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
     height: 270,
     borderRadius: 135,
     borderWidth: 1.5,
-    borderColor: Colors.gold,
+    borderColor: Brand.lootGold,
   },
 
   coin: {
@@ -197,12 +198,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '26%',
     right: '6%',
-    backgroundColor: Colors.gold,
+    backgroundColor: Brand.lootGold,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
     borderBottomRightRadius: 4,
-    shadowColor: Colors.gold,
+    shadowColor: Brand.lootGold,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.55,
     shadowRadius: 12,
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 12,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: Colors.gold,
+    borderTopColor: Brand.lootGold,
   },
 
   gooseWrap: {
@@ -240,14 +241,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 38,
     fontWeight: '900',
-    color: Colors.gold,
+    color: Brand.lootGold,
     letterSpacing: 3,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: DarkTheme.textSecondary,
     letterSpacing: 1,
   },
 });

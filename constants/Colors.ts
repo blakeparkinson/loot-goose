@@ -15,6 +15,9 @@ export type AppTheme = {
 
   gold: string;
   goldLight: string;
+  // Text that would be gold. Deep gold on white is about 2.9:1, too faint for text (BRAND.md),
+  // so in light mode this is the text colour; gold stays for fills, borders and icons.
+  goldText: string;
   green: string;
   greenLight: string;
   red: string;
@@ -44,6 +47,7 @@ export const DarkTheme: AppTheme = {
 
   gold: Brand.lootGold,
   goldLight: 'rgba(245,166,35,0.15)',
+  goldText: Brand.lootGold,
   green: '#3FB950',
   greenLight: 'rgba(63,185,80,0.15)',
   red: '#F85149',
@@ -68,6 +72,7 @@ export const LightTheme: AppTheme = {
 
   gold: Brand.deepGold,
   goldLight: 'rgba(212,136,15,0.12)',
+  goldText: '#1F2328',
   green: '#1A7F37',
   greenLight: 'rgba(26,127,55,0.12)',
   red: '#CF222E',
@@ -83,7 +88,3 @@ export const LightTheme: AppTheme = {
 
   shadow: 'rgba(0,0,0,0.1)',
 };
-
-// Default export for backward compatibility — always returns dark theme
-const Colors = DarkTheme;
-export default Colors;

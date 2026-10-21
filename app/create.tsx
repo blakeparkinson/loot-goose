@@ -16,16 +16,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import Colors from '@/constants/Colors';
+import { AppTheme } from '@/constants/Colors';
+import { useTheme } from '@/lib/useTheme';
 import { HuntDifficulty, QuickPreset } from '@/lib/types';
 import { generateHunt } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { fetchWeather, WeatherInfo } from '@/lib/weather';
 
-const DIFFICULTIES: { key: HuntDifficulty; label: string; emoji: string; color: string }[] = [
-  { key: 'easy', label: 'Chill', emoji: '🌿', color: Colors.green },
-  { key: 'medium', label: 'Honky', emoji: '🪿', color: Colors.gold },
-  { key: 'hard', label: 'Feral', emoji: '🔥', color: Colors.red },
+const DIFFICULTIES: { key: HuntDifficulty; label: string; emoji: string; color: keyof AppTheme }[] = [
+  { key: 'easy', label: 'Chill', emoji: '🌿', color: 'green' },
+  { key: 'medium', label: 'Honky', emoji: '🪿', color: 'gold' },
+  { key: 'hard', label: 'Feral', emoji: '🔥', color: 'red' },
 ];
 
 const PROMPT_SUGGESTIONS = [
@@ -85,6 +86,8 @@ const QUICK_PRESETS: QuickPreset[] = [
 ];
 
 export default function CreateScreen() {
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const router = useRouter();
   const params = useLocalSearchParams<{
     presetTitle?: string;
@@ -225,7 +228,7 @@ export default function CreateScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.bg }}
+      style={{ flex: 1, backgroundColor: C.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
@@ -250,14 +253,14 @@ export default function CreateScreen() {
             <TextInput
               style={[styles.input, styles.locationInput]}
               placeholder={isLocating ? 'Detecting location...' : 'e.g. Central Park, NYC'}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={C.textMuted}
               value={location}
               onChangeText={setLocation}
               returnKeyType="next"
               editable={!isGenerating}
               accessibilityLabel="Location"
             />
-            {isLocating && <ActivityIndicator style={styles.locationSpinner} size="small" color={Colors.textMuted} />}
+            {isLocating && <ActivityIndicator style={styles.locationSpinner} size="small" color={C.textMuted} />}
           </View>
           <TouchableOpacity
             style={[styles.locateBtn, isLocating && { opacity: 0.7 }]}
@@ -265,7 +268,7 @@ export default function CreateScreen() {
             disabled={isLocating}
             activeOpacity={0.8}
           >
-            <FontAwesome name="location-arrow" size={13} color={Colors.gold} />
+            <FontAwesome name="location-arrow" size={13} color={C.gold} />
             <Text style={styles.locateBtnText}>{isLocating ? 'Finding you...' : 'Use current location'}</Text>
           </TouchableOpacity>
           <Text style={styles.locationNote}>Manual entry works too. GPS just helps with weather and nearby routing.</Text>
@@ -309,7 +312,7 @@ export default function CreateScreen() {
           <TextInput
             style={[styles.input, styles.inputMultiline]}
             placeholder="e.g. Find things a dog would love"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={C.textMuted}
             value={prompt}
             onChangeText={setPrompt}
             multiline
@@ -350,7 +353,7 @@ export default function CreateScreen() {
               accessibilityRole="button"
               accessibilityLabel="Fewer stops"
             >
-              <FontAwesome name="minus" size={16} color={stopCount <= MIN_STOPS ? Colors.textMuted : Colors.text} />
+              <FontAwesome name="minus" size={16} color={stopCount <= MIN_STOPS ? C.textMuted : C.text} />
             </TouchableOpacity>
             <View style={styles.stepperValue}>
               <Text style={styles.stepperNumber}>{stopCount}</Text>
@@ -364,7 +367,7 @@ export default function CreateScreen() {
               accessibilityRole="button"
               accessibilityLabel="More stops"
             >
-              <FontAwesome name="plus" size={16} color={stopCount >= MAX_STOPS ? Colors.textMuted : Colors.text} />
+              <FontAwesome name="plus" size={16} color={stopCount >= MAX_STOPS ? C.textMuted : C.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -375,10 +378,12 @@ export default function CreateScreen() {
           <View style={styles.diffRow}>
             {DIFFICULTIES.map((d) => {
               const selected = difficulty === d.key;
+              const color = C[d.color];
+              const textColor = d.color === 'gold' ? C.goldText : color;
               return (
                 <TouchableOpacity
                   key={d.key}
-                  style={[styles.diffCard, selected && { borderColor: d.color, backgroundColor: `${d.color}15` }]}
+                  style={[styles.diffCard, selected && { borderColor: color, backgroundColor: `${color}15` }]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setDifficulty(d.key);
@@ -386,7 +391,7 @@ export default function CreateScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.diffEmoji}>{d.emoji}</Text>
-                  <Text style={[styles.diffLabel, selected && { color: d.color }]}>{d.label}</Text>
+                  <Text style={[styles.diffLabel, selected && { color: textColor }]}>{d.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -431,29 +436,29 @@ export default function CreateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: AppTheme) => StyleSheet.create({
   content: { padding: 20 },
 
   weatherChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     alignSelf: 'flex-start',
   },
   weatherEmoji: { fontSize: 16 },
-  weatherLabel: { fontSize: 13, color: Colors.text, fontWeight: '600' },
-  weatherNote: { fontSize: 12, color: Colors.textMuted },
+  weatherLabel: { fontSize: 13, color: C.text, fontWeight: '600' },
+  weatherNote: { fontSize: 12, color: C.textMuted },
 
   section: { marginBottom: 28 },
   label: {
-    fontSize: 13, fontWeight: '700', color: Colors.textSecondary,
+    fontSize: 13, fontWeight: '700', color: C.textSecondary,
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
   },
 
@@ -469,16 +474,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: Colors.goldLight,
+    backgroundColor: C.goldLight,
     borderWidth: 1,
-    borderColor: `${Colors.gold}35`,
+    borderColor: `${C.gold}35`,
   },
-  locateBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
-  locationNote: { marginTop: 8, fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
+  locateBtnText: { fontSize: 13, fontWeight: '700', color: C.goldText },
+  locationNote: { marginTop: 8, fontSize: 12, color: C.textMuted, lineHeight: 18 },
 
   input: {
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 14, padding: 16, fontSize: 16, color: Colors.text,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, padding: 16, fontSize: 16, color: C.text,
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
 
@@ -487,63 +492,63 @@ const styles = StyleSheet.create({
     width: 180,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: Colors.card,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   presetCardActive: {
-    borderColor: Colors.gold,
-    backgroundColor: `${Colors.gold}10`,
+    borderColor: C.gold,
+    backgroundColor: `${C.gold}10`,
   },
-  presetTitle: { fontSize: 14, fontWeight: '800', color: Colors.text, marginBottom: 6 },
-  presetTitleActive: { color: Colors.gold },
-  presetSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: 10 },
+  presetTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 6 },
+  presetTitleActive: { color: C.goldText },
+  presetSubtitle: { fontSize: 12, color: C.textSecondary, lineHeight: 18, marginBottom: 10 },
   presetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  presetMeta: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'capitalize' },
+  presetMeta: { fontSize: 11, fontWeight: '700', color: C.textMuted, textTransform: 'capitalize' },
   challengeBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: Colors.goldLight,
+    backgroundColor: C.goldLight,
     borderWidth: 1,
-    borderColor: `${Colors.gold}35`,
+    borderColor: `${C.gold}35`,
   },
-  challengeBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
+  challengeBadgeText: { fontSize: 11, fontWeight: '800', color: C.goldText, textTransform: 'uppercase' },
   suggestions: { gap: 8, paddingTop: 10, paddingRight: 4 },
   suggestion: {
-    backgroundColor: Colors.surface, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: C.surface, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: C.border,
   },
-  suggestionActive: { backgroundColor: `${Colors.gold}20`, borderColor: Colors.gold },
-  suggestionText: { fontSize: 13, color: Colors.textSecondary },
-  suggestionTextActive: { color: Colors.gold, fontWeight: '700' },
+  suggestionActive: { backgroundColor: `${C.gold}20`, borderColor: C.gold },
+  suggestionText: { fontSize: 13, color: C.textSecondary },
+  suggestionTextActive: { color: C.goldText, fontWeight: '700' },
 
   stepperRow: {
     flexDirection: 'row', alignItems: 'center', gap: 16,
-    backgroundColor: Colors.card, borderRadius: 14, borderWidth: 1,
-    borderColor: Colors.border, padding: 12, alignSelf: 'flex-start',
+    backgroundColor: C.card, borderRadius: 14, borderWidth: 1,
+    borderColor: C.border, padding: 12, alignSelf: 'flex-start',
   },
   stepperBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surface,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: C.surface,
     alignItems: 'center', justifyContent: 'center',
   },
   stepperBtnDisabled: { opacity: 0.4 },
   stepperValue: { alignItems: 'center', minWidth: 60 },
-  stepperNumber: { fontSize: 32, fontWeight: '900', color: Colors.gold, lineHeight: 36 },
-  stepperUnit: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  stepperNumber: { fontSize: 32, fontWeight: '900', color: C.goldText, lineHeight: 36 },
+  stepperUnit: { fontSize: 12, color: C.textSecondary, fontWeight: '600' },
 
   diffRow: { flexDirection: 'row', gap: 10 },
   diffCard: {
-    flex: 1, backgroundColor: Colors.card, borderWidth: 1.5, borderColor: Colors.border,
+    flex: 1, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border,
     borderRadius: 14, padding: 14, alignItems: 'center', gap: 6,
   },
   diffEmoji: { fontSize: 24 },
-  diffLabel: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  diffLabel: { fontSize: 14, fontWeight: '800', color: C.text },
 
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
 
   generateBtn: {
-    backgroundColor: Colors.gold, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.gold, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', paddingVertical: 18, borderRadius: 16, gap: 10,
   },
   generateBtnDisabled: { opacity: 0.4 },
@@ -551,7 +556,7 @@ const styles = StyleSheet.create({
   generateBtnText: { fontSize: 17, fontWeight: '800', color: '#000' },
   generateHint: {
     fontSize: 13,
-    color: Colors.textMuted,
+    color: C.textMuted,
     textAlign: 'center',
     marginTop: 10,
   },

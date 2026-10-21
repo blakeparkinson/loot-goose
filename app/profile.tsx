@@ -205,7 +205,7 @@ export default function ProfileScreen() {
                     accessibilityLabel={`${opt.label} theme`}
                     accessibilityState={{ selected: active }}
                   >
-                    <Text style={[styles.themePillText, active && styles.themePillTextActive]}>
+                    <Text style={[styles.themePillText, { color: C.textSecondary }, active && styles.themePillTextActive]}>
                       {opt.label}
                     </Text>
                   </TouchableOpacity>
@@ -334,7 +334,6 @@ const styles = StyleSheet.create({
   themePillText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#8B949E',
   },
   themePillTextActive: {
     color: '#000',
