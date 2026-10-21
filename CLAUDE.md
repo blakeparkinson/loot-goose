@@ -13,7 +13,7 @@ npm start              # Start Expo dev server
 npm run ios            # Run on iOS simulator
 npm run android        # Run on Android emulator
 npm run web            # Run on web
-npm run generate-assets # Generate app assets with Sharp
+npm run generate-assets # Regenerates assets/ from an old SVG goose; overwrites the shipped icon (see BRAND.md)
 ```
 
 EAS builds are configured in `eas.json` with development, preview, and production profiles.
@@ -48,6 +48,7 @@ EAS builds are configured in `eas.json` with development, preview, and productio
 - TypeScript strict mode; path alias `@/*` maps to project root
 - `.npmrc` sets `legacy-peer-deps=true` (required for install)
 - Dark theme colors defined in `constants/Colors.ts`
+- `BRAND.md` is the brief for the goose character, icon, palette and voice; read it before touching art or copy
 - Environment variables: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_MAPS_ANDROID_API_KEY`
 - Haptics feedback for user interactions
 - Animations use react-native-reanimated
