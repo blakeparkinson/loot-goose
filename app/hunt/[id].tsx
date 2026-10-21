@@ -574,7 +574,7 @@ export default function HuntScreen() {
             </View>
           </View>
           <View style={styles.itemRight}>
-            <Text style={[styles.itemPoints, { color: item.completed ? C.green : C.gold }]}>
+            <Text style={[styles.itemPoints, { color: item.completed ? C.green : C.goldText }]}>
               {item.points}pts
             </Text>
             {item.completed && item.photoUri && (

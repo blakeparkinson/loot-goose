@@ -161,7 +161,7 @@ export default function ProfileScreen() {
               <Animated.View style={{ transform: [{ scale: gooseScale }] }}>
                 <Image source={GOOSE_IMAGE} style={styles.goose} accessibilityLabel="Loot Goose mascot" />
               </Animated.View>
-              <Text style={[styles.rankName, { color: C[rank.color] }]}>{rank.name}</Text>
+              <Text style={[styles.rankName, { color: C[rank.color === 'gold' ? 'goldText' : rank.color] }]}>{rank.name}</Text>
               <Text style={[styles.rankPoints, { color: C.textSecondary }]}>{stats.points} total points</Text>
             </View>
 
