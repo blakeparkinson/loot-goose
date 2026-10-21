@@ -527,9 +527,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: Colors.purpleLight,
+    backgroundColor: Colors.goldLight,
   },
-  featureBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  featureBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
   freshBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,

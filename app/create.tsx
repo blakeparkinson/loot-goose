@@ -265,7 +265,7 @@ export default function CreateScreen() {
             disabled={isLocating}
             activeOpacity={0.8}
           >
-            <FontAwesome name="location-arrow" size={13} color={Colors.blue} />
+            <FontAwesome name="location-arrow" size={13} color={Colors.gold} />
             <Text style={styles.locateBtnText}>{isLocating ? 'Finding you...' : 'Use current location'}</Text>
           </TouchableOpacity>
           <Text style={styles.locationNote}>Manual entry works too. GPS just helps with weather and nearby routing.</Text>
@@ -469,11 +469,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: Colors.blueLight,
+    backgroundColor: Colors.goldLight,
     borderWidth: 1,
-    borderColor: `${Colors.blue}35`,
+    borderColor: `${Colors.gold}35`,
   },
-  locateBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
+  locateBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
   locationNote: { marginTop: 8, fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
 
   input: {
@@ -504,11 +504,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: Colors.purpleLight,
+    backgroundColor: Colors.goldLight,
     borderWidth: 1,
-    borderColor: `${Colors.purple}35`,
+    borderColor: `${Colors.gold}35`,
   },
-  challengeBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  challengeBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
   suggestions: { gap: 8, paddingTop: 10, paddingRight: 4 },
   suggestion: {
     backgroundColor: Colors.surface, borderRadius: 20,

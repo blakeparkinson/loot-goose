@@ -166,7 +166,7 @@ export default function CoopScreen() {
           <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
           {!item.completed && item.sublocation && (
             <Text style={styles.itemSublocation} numberOfLines={1}>
-              <FontAwesome name="map-pin" size={11} color={Colors.blue} /> {item.sublocation}
+              <FontAwesome name="map-pin" size={11} color={Colors.gold} /> {item.sublocation}
             </Text>
           )}
           {item.completed && item.completedBy && (
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
   itemDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18, marginBottom: 4 },
-  itemSublocation: { fontSize: 12, color: Colors.blue, marginBottom: 3 },
+  itemSublocation: { fontSize: 12, color: Colors.textSecondary, marginBottom: 3 },
   completedBy: { fontSize: 11, color: Colors.green, marginTop: 2 },
 
   itemRight: { alignItems: 'flex-end', gap: 8, marginLeft: 8 },

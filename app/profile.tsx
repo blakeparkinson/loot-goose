@@ -2,21 +2,21 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import Colors from '@/constants/Colors';
 import { useAppStore } from '@/lib/store';
 import { useTheme } from '@/lib/useTheme';
 import { Hunt } from '@/lib/types';
-import { ThemeMode } from '@/constants/Colors';
+import { AppTheme, ThemeMode } from '@/constants/Colors';
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
 
-const RANKS: { name: string; minPoints: number; color: string }[] = [
-  { name: 'Legendary Goose', minPoints: 5000, color: '#F5A623' },
-  { name: 'Golden Goose', minPoints: 2000, color: '#F5A623' },
-  { name: 'Veteran Honker', minPoints: 1000, color: '#BC8CFF' },
-  { name: 'Trail Blazer', minPoints: 500, color: '#58A6FF' },
-  { name: 'Keen Seeker', minPoints: 200, color: '#3FB950' },
-  { name: 'Fresh Flock', minPoints: 0, color: '#8B949E' },
+// Each tier has its own colour so the climb reads at a glance; gold is kept for the top.
+const RANKS: { name: string; minPoints: number; color: keyof AppTheme }[] = [
+  { name: 'Legendary Goose', minPoints: 5000, color: 'gold' },
+  { name: 'Golden Goose', minPoints: 2000, color: 'gold' },
+  { name: 'Veteran Honker', minPoints: 1000, color: 'purple' },
+  { name: 'Trail Blazer', minPoints: 500, color: 'blue' },
+  { name: 'Keen Seeker', minPoints: 200, color: 'green' },
+  { name: 'Fresh Flock', minPoints: 0, color: 'textSecondary' },
 ];
 
 function getRank(points: number) {
@@ -43,8 +43,6 @@ const THEME_OPTIONS: { mode: ThemeMode; label: string }[] = [
   { mode: 'light', label: 'Light' },
   { mode: 'dark', label: 'Dark' },
 ];
-
-const STAT_COLORS = ['#F5A623', '#3FB950', '#BC8CFF', '#58A6FF'];
 
 export default function ProfileScreen() {
   const hunts = useAppStore((s) => s.hunts);
@@ -137,7 +135,7 @@ export default function ProfileScreen() {
             </Text>
             {duration && (
               <Text style={[styles.huntStat, { color: C.textSecondary }]}>
-                <FontAwesome name="clock-o" size={11} color={C.blue} /> {duration}
+                <FontAwesome name="clock-o" size={11} color={C.textMuted} /> {duration}
               </Text>
             )}
           </View>
@@ -161,16 +159,16 @@ export default function ProfileScreen() {
               <Animated.View style={{ transform: [{ scale: gooseScale }] }}>
                 <Image source={GOOSE_IMAGE} style={styles.goose} accessibilityLabel="Loot Goose mascot" />
               </Animated.View>
-              <Text style={[styles.rankName, { color: rank.color }]}>{rank.name}</Text>
+              <Text style={[styles.rankName, { color: C[rank.color] }]}>{rank.name}</Text>
               <Text style={[styles.rankPoints, { color: C.textSecondary }]}>{stats.points} total points</Text>
             </View>
 
             {/* Stats grid */}
             <View style={styles.statsGrid}>
-              {renderStatBox('trophy', String(stats.hunts), 'Hunts', STAT_COLORS[0], 0)}
-              {renderStatBox('search', String(stats.items), 'Items Found', STAT_COLORS[1], 1)}
-              {renderStatBox('star', String(stats.points), 'Points', STAT_COLORS[2], 2)}
-              {renderStatBox('road', stats.distance > 0 ? `${stats.distance.toFixed(1)} mi` : '\u2014', 'Distance', STAT_COLORS[3], 3)}
+              {renderStatBox('trophy', String(stats.hunts), 'Hunts', C.gold, 0)}
+              {renderStatBox('search', String(stats.items), 'Items Found', C.green, 1)}
+              {renderStatBox('star', String(stats.points), 'Points', C.gold, 2)}
+              {renderStatBox('road', stats.distance > 0 ? `${stats.distance.toFixed(1)} mi` : '\u2014', 'Distance', C.gold, 3)}
             </View>
 
             {completedHunts.length > 0 && (

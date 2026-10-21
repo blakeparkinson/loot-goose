@@ -103,7 +103,7 @@ function EmptyState() {
       <Text style={styles.emptyTitle}>No hunts yet</Text>
       <Text style={styles.emptySubtitle}>
         Tap <Text style={{ color: Colors.gold, fontWeight: '800' }}>New Hunt</Text> to build one,
-        or hit <Text style={{ color: Colors.purple, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
+        or hit <Text style={{ color: Colors.gold, fontWeight: '800' }}>Goose Loose</Text> to let us surprise you.
       </Text>
     </View>
   );
@@ -610,7 +610,7 @@ export default function HomeScreen() {
         >
           {gooseLooseLoading ? (
             <>
-              <ActivityIndicator size="small" color={Colors.purple} />
+              <ActivityIndicator size="small" color={Colors.gold} />
               <Text style={styles.gooseLooseText} numberOfLines={1}>{gooseLooseMsg}</Text>
             </>
           ) : (
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   featuredCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
-  featuredBadge: { fontSize: 10, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  featuredBadge: { fontSize: 10, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
   featuredDiff: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
   featuredTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, marginBottom: 8 },
   featuredSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
@@ -842,12 +842,12 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: Colors.purple,
-    backgroundColor: Colors.purpleLight,
+    borderColor: Colors.gold,
+    backgroundColor: Colors.goldLight,
     overflow: 'hidden',
   },
   gooseLooseEmoji: { width: 26, height: 26, borderRadius: 7 },
-  gooseLooseText: { fontSize: 14, fontWeight: '800', color: Colors.purple, flexShrink: 1 },
+  gooseLooseText: { fontSize: 14, fontWeight: '800', color: Colors.gold, flexShrink: 1 },
 
   fab: {
     flex: 1,

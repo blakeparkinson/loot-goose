@@ -403,7 +403,7 @@ export default function HuntCompleteScreen() {
           activeOpacity={0.8}
           disabled={isPublishing}
         >
-          <FontAwesome name="share-alt" size={15} color={Colors.purple} />
+          <FontAwesome name="share-alt" size={15} color={Colors.gold} />
           <Text style={styles.secondaryBtnText}>{isPublishing ? 'Publishing…' : (hunt.publishedCode ? 'Share Hunt Code' : 'Publish & Share Hunt')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -411,8 +411,8 @@ export default function HuntCompleteScreen() {
           onPress={handleRemix}
           activeOpacity={0.8}
         >
-          <FontAwesome name="refresh" size={15} color={Colors.blue} />
-          <Text style={[styles.secondaryBtnText, { color: Colors.blue }]}>Remix This Hunt</Text>
+          <FontAwesome name="refresh" size={15} color={Colors.gold} />
+          <Text style={styles.secondaryBtnText}>Remix This Hunt</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.doneBtn}
@@ -659,9 +659,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: Colors.purpleLight,
+    backgroundColor: Colors.goldLight,
   },
-  highlightPillText: { fontSize: 11, fontWeight: '800', color: Colors.purple, textTransform: 'uppercase' },
+  highlightPillText: { fontSize: 11, fontWeight: '800', color: Colors.gold, textTransform: 'uppercase' },
   highlightText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
+  secondaryBtnText: { fontSize: 14, fontWeight: '700', color: Colors.text },
   doneBtn: {
     backgroundColor: Colors.gold,
     paddingVertical: 16,

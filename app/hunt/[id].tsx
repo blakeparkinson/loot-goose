@@ -550,14 +550,14 @@ export default function HuntScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ expanded: expandedLore.has(item.id) }}
                 >
-                  <FontAwesome name="book" size={11} color={Colors.purple} />
+                  <FontAwesome name="book" size={11} color={Colors.gold} />
                   <Text style={styles.loreToggleText}>
                     {expandedLore.has(item.id) ? 'Hide summary' : 'View summary'}
                   </Text>
                   <FontAwesome
                     name={expandedLore.has(item.id) ? 'chevron-up' : 'chevron-down'}
                     size={10}
-                    color={Colors.purple}
+                    color={Colors.gold}
                   />
                 </TouchableOpacity>
               ) : null}
@@ -691,10 +691,10 @@ export default function HuntScreen() {
             disabled={isTuning || hunt.items.every((i) => i.completed)}
           >
             {isTuning ? (
-              <ActivityIndicator size="small" color={Colors.purple} />
+              <ActivityIndicator size="small" color={Colors.gold} />
             ) : (
               <>
-                <FontAwesome name="magic" size={14} color={Colors.purple} />
+                <FontAwesome name="magic" size={14} color={Colors.gold} />
                 <Text style={styles.tuneBtnText}>Tune</Text>
               </>
             )}
@@ -705,10 +705,10 @@ export default function HuntScreen() {
             disabled={isScoutLoading}
           >
             {isScoutLoading ? (
-              <ActivityIndicator size="small" color={Colors.blue} />
+              <ActivityIndicator size="small" color={Colors.gold} />
             ) : (
               <>
-                <FontAwesome name="compass" size={13} color={Colors.blue} />
+                <FontAwesome name="compass" size={13} color={Colors.gold} />
                 <Text style={styles.previewBtnText}>Scout</Text>
               </>
             )}
@@ -723,10 +723,10 @@ export default function HuntScreen() {
             disabled={isCreatingCoop}
           >
             {isCreatingCoop ? (
-              <ActivityIndicator size="small" color={Colors.purple} />
+              <ActivityIndicator size="small" color={Colors.gold} />
             ) : (
               <>
-                <FontAwesome name="group" size={13} color={Colors.purple} />
+                <FontAwesome name="group" size={13} color={Colors.gold} />
                 <Text style={styles.coopBtnText}>Co-op</Text>
               </>
             )}
@@ -735,7 +735,7 @@ export default function HuntScreen() {
             style={styles.routeBtn}
             onPress={handleExportRoute}
           >
-            <FontAwesome name="map" size={13} color={Colors.blue} />
+            <FontAwesome name="map" size={13} color={Colors.gold} />
             <Text style={styles.routeBtnText}>Route</Text>
           </TouchableOpacity>
         </View>
@@ -814,12 +814,12 @@ export default function HuntScreen() {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalConfirmBtn, { backgroundColor: Colors.purple }]}
+                style={styles.modalConfirmBtn}
                 onPress={handleTuneHunt}
                 disabled={!tuneFeedback.trim()}
               >
-                <FontAwesome name="magic" size={13} color="#fff" />
-                <Text style={[styles.modalConfirmText, { color: '#fff' }]}>Tune It</Text>
+                <FontAwesome name="magic" size={13} color="#000" />
+                <Text style={styles.modalConfirmText}>Tune It</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -855,16 +855,16 @@ export default function HuntScreen() {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalConfirmBtn, { backgroundColor: Colors.purple }, (!coopPlayerName.trim() || isCreatingCoop) && { opacity: 0.6 }]}
+                style={[styles.modalConfirmBtn, (!coopPlayerName.trim() || isCreatingCoop) && { opacity: 0.6 }]}
                 onPress={handleCreateCoop}
                 disabled={!coopPlayerName.trim() || isCreatingCoop}
               >
                 {isCreatingCoop ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color="#000" />
                 ) : (
                   <>
-                    <FontAwesome name="group" size={13} color="#fff" />
-                    <Text style={[styles.modalConfirmText, { color: '#fff' }]}>Start Co-op</Text>
+                    <FontAwesome name="group" size={13} color="#000" />
+                    <Text style={styles.modalConfirmText}>Start Co-op</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -980,11 +980,11 @@ export default function HuntScreen() {
                           disabled={scoutRerollingId === item.id}
                         >
                           {scoutRerollingId === item.id ? (
-                            <ActivityIndicator size="small" color={Colors.purple} />
+                            <ActivityIndicator size="small" color={Colors.gold} />
                           ) : (
                             <>
-                              <FontAwesome name="refresh" size={11} color={Colors.purple} />
-                              <Text style={[styles.scoutMiniBtnText, { color: Colors.purple }]}>Reroll</Text>
+                              <FontAwesome name="refresh" size={11} color={Colors.gold} />
+                              <Text style={[styles.scoutMiniBtnText, { color: Colors.gold }]}>Reroll</Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -1004,10 +1004,10 @@ export default function HuntScreen() {
                   disabled={isScoutTightening}
                 >
                   {isScoutTightening ? (
-                    <ActivityIndicator size="small" color={Colors.purple} />
+                    <ActivityIndicator size="small" color={Colors.gold} />
                   ) : (
                     <>
-                      <FontAwesome name="compress" size={13} color={Colors.purple} />
+                      <FontAwesome name="compress" size={13} color={Colors.gold} />
                       <Text style={styles.tightenBtnText}>Tighten</Text>
                     </>
                   )}
@@ -1168,28 +1168,28 @@ const styles = StyleSheet.create({
   headerBtns: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   tuneBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.purple}30`,
+    gap: 8, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.gold}30`,
   },
-  tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.purple },
+  tuneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.gold },
   previewBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.blue}30`,
+    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.gold}30`,
   },
-  previewBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
+  previewBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
   coopBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: `${Colors.purple}18`, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.purple}30`,
+    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.gold}30`,
   },
-  coopBtnText: { fontSize: 13, fontWeight: '700', color: Colors.purple },
+  coopBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
   routeBtn: {
     flexBasis: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.blueLight, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: `${Colors.blue}30`,
+    gap: 6, backgroundColor: Colors.goldLight, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: `${Colors.gold}30`,
   },
-  routeBtnText: { fontSize: 13, fontWeight: '700', color: Colors.blue },
+  routeBtnText: { fontSize: 13, fontWeight: '700', color: Colors.gold },
 
   itemThumb: {
     width: 52, height: 52, borderRadius: 8,
@@ -1229,12 +1229,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4,
     alignSelf: 'flex-start',
   },
-  loreToggleText: { fontSize: 12, color: Colors.purple, fontWeight: '600' },
+  loreToggleText: { fontSize: 12, color: Colors.gold, fontWeight: '600' },
   loreBox: {
     marginTop: 8, marginBottom: 2,
-    backgroundColor: `${Colors.purple}10`,
+    backgroundColor: `${Colors.gold}10`,
     borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: `${Colors.purple}25`,
+    borderWidth: 1, borderColor: `${Colors.gold}25`,
   },
   loreText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   verificationNote: { fontSize: 12, color: Colors.textSecondary },
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
   },
   scoutMiniBtnText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
   tightenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  tightenBtnText: { fontSize: 15, fontWeight: '700', color: Colors.purple },
+  tightenBtnText: { fontSize: 15, fontWeight: '700', color: Colors.gold },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 4 },
   modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
   modalInput: {
