@@ -8,6 +8,7 @@ import { Hunt } from '@/lib/types';
 import { AppTheme, ThemeMode } from '@/constants/Colors';
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
+const SEARCHING_GOOSE = require('@/assets/poses/searching.png');
 const STUDIO_MARK = require('@/assets/studio-mark.png');
 const STUDIO_URL = 'https://primemenagerie.com';
 
@@ -180,7 +181,13 @@ export default function ProfileScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Image source={GOOSE_IMAGE} style={styles.emptyGoose} accessibilityLabel="Loot Goose mascot" />
+            <Image
+              source={SEARCHING_GOOSE}
+              style={styles.emptyGoose}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel="The goose peering over a map, still looking for your first finished hunt"
+            />
             <Text style={[styles.emptyText, { color: C.text }]}>No completed hunts yet</Text>
             <Text style={[styles.emptySubtext, { color: C.textSecondary }]}>
               Get out there and find some loot, you beautiful goose.
@@ -303,7 +310,7 @@ const styles = StyleSheet.create({
   huntDate: { fontSize: 11, fontWeight: '600' },
 
   empty: { alignItems: 'center', paddingTop: 40, gap: 8 },
-  emptyGoose: { width: 80, height: 80, borderRadius: 20, marginBottom: 8 },
+  emptyGoose: { width: 80, height: 80, borderRadius: 40, marginBottom: 8 },
   emptyText: { fontSize: 17, fontWeight: '700' },
   emptySubtext: { fontSize: 14, textAlign: 'center', lineHeight: 20, paddingHorizontal: 32 },
 

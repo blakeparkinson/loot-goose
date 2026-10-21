@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -27,6 +28,8 @@ import {
 } from '@/lib/api';
 import { Toast } from '@/components/Toast';
 import { HuntCardSkeleton } from '@/components/Skeleton';
+
+const SEARCHING_GOOSE = require('@/assets/poses/searching.png');
 
 const DIFFICULTY_COLOR: Record<string, keyof AppTheme> = {
   easy: 'green',
@@ -278,7 +281,13 @@ export default function LibraryScreen() {
     if (loading) return null;
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyGoose}>🗂</Text>
+        <Image
+          source={SEARCHING_GOOSE}
+          style={styles.emptyGoose}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel="The goose peering over a map, searching the library"
+        />
         <Text style={styles.emptyTitle}>
           {query.trim() ? `No hunts found for "${query.trim()}"` : 'Be the first to publish a hunt!'}
         </Text>
@@ -588,7 +597,7 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
   playBtnText: { fontSize: 15, fontWeight: '800', color: '#000' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 80 },
-  emptyGoose: { fontSize: 56, marginBottom: 16 },
+  emptyGoose: { width: 80, height: 80, borderRadius: 40, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8, textAlign: 'center' },
   emptySubtitle: { fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

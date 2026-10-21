@@ -13,7 +13,7 @@ import {
   Share,
 } from 'react-native';
 
-const GOOSE_IMAGE = require('@/assets/icon.png');
+const FOUND_GOOSE = require('@/assets/poses/found.png');
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -211,7 +211,7 @@ export default function HuntCompleteScreen() {
 
           {/* Hero */}
           <View style={styles.recapHero}>
-            <Image source={GOOSE_IMAGE} style={styles.recapGoose} />
+            <Image source={FOUND_GOOSE} style={styles.recapGoose} accessible={false} />
             <Text style={styles.recapComplete}>HUNT COMPLETE!</Text>
             <Text style={styles.recapTitle}>{hunt.title}</Text>
             <Text style={styles.recapLocation}>📍 {hunt.location}</Text>
@@ -314,7 +314,13 @@ export default function HuntCompleteScreen() {
           </Animated.View>
 
           <Animated.View style={{ transform: [{ scale: gooseScale }, { translateY: gooseBounce }], marginBottom: 16 }}>
-            <Image source={GOOSE_IMAGE} style={styles.goose} />
+            <Image
+              source={FOUND_GOOSE}
+              style={styles.goose}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel="The goose holding up a gold coin, delighted you finished the hunt"
+            />
           </Animated.View>
 
           <Animated.View style={{ opacity: fadeIn, transform: [{ translateY: titleSlide }] }}>
@@ -472,7 +478,7 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  recapGoose: { width: 90, height: 90, borderRadius: 20, marginBottom: 10 },
+  recapGoose: { width: 90, height: 90, borderRadius: 45, marginBottom: 10 },
   recapComplete: {
     fontSize: 22,
     fontWeight: '900',
@@ -616,7 +622,7 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
   starBLText: { fontSize: 20 },
   starBR: { position: 'absolute', top: 152, right: '6%' },
   starBRText: { fontSize: 22 },
-  goose: { width: 130, height: 130, borderRadius: 30 },
+  goose: { width: 130, height: 130, borderRadius: 65 },
   heroTitle: {
     fontSize: 28,
     fontWeight: '900',

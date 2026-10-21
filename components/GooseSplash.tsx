@@ -137,7 +137,12 @@ export default function GooseSplash({ onFinished }: Props) {
 
       {/* Goose */}
       <Animated.View style={[styles.gooseWrap, { opacity: fadeIn, transform: gooseTransform }]}>
-        <Image source={require('@/assets/icon.png')} style={styles.goose} />
+        <Image
+          source={require('@/assets/poses/honk.png')}
+          style={styles.goose}
+          // The splash dismisses itself after ~3s, so the honk stays out of screen reader focus
+          accessible={false}
+        />
       </Animated.View>
 
       {/* Title */}
@@ -235,7 +240,7 @@ const styles = StyleSheet.create({
   goose: {
     width: 160,
     height: 160,
-    borderRadius: 36,
+    borderRadius: 80,
   },
 
   title: {
