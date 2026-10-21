@@ -25,6 +25,8 @@ The screens that show the goose (`GooseSplash`, the home empty state, Goose Loos
 
 The old asset generator (`scripts/generate-assets.mjs`) drew a different, older goose and wrote over `icon.png`; it's gone. The icon set is made from the approved art, not generated in code.
 
+The master lives in the studio repo, `prime-menagerie/brand/goose/`. To change the icon, change the master there and run `npm run brand:sync -- loot-goose <this checkout>`; don't edit these files by hand.
+
 ## Character
 
 - **Species.** A domestic white goose (Embden type): long S-curved neck, heavy body, orange bill, orange legs, and a dark eye under a low, expressive brow.
