@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useCallback, useRef, useState } from 'react';
 import { Animated, Text, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Colors from '@/constants/Colors';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -24,9 +25,9 @@ export const Toast = {
 };
 
 const TYPE_COLORS: Record<ToastType, string> = {
-  success: '#3FB950',
-  error: '#F85149',
-  info: '#58A6FF',
+  success: Colors.green,
+  error: Colors.red,
+  info: Colors.blue,
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

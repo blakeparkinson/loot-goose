@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, Easing, Image } from 'react-native';
-import Colors from '@/constants/Colors';
+import Colors, { Brand } from '@/constants/Colors';
 
 interface Props {
   onFinished: () => void;
@@ -156,7 +156,8 @@ export default function GooseSplash({ onFinished }: Props) {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.bg,
+    // Badge navy, so the hand-off from the native splash (app.config.js) doesn't flash
+    backgroundColor: Brand.badgeNavy,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 999,
