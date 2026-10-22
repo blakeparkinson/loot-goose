@@ -31,6 +31,10 @@ import { persistHuntPhoto } from '@/lib/photos';
 
 const ReanimatedCamera = Animated.createAnimatedComponent(Camera);
 
+const JUDGING_GOOSE = require('@/assets/poses/judging.png');
+const FOUND_GOOSE = require('@/assets/poses/found.png');
+const NOPE_GOOSE = require('@/assets/poses/nope.png');
+
 export default function CameraScreen() {
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -266,6 +270,13 @@ export default function CameraScreen() {
 
         {isVerifying && (
           <View style={styles.verifyingOverlay}>
+            <Image
+              source={JUDGING_GOOSE}
+              style={styles.poseGoose}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel="The goose studying your photo through its magnifying glass"
+            />
             <ActivityIndicator color="#fff" size="large" />
             <Text style={styles.verifyingTitle}>Checking your photo…</Text>
             <Text style={styles.verifyingSubtitle}>The goose is on it</Text>
@@ -274,7 +285,17 @@ export default function CameraScreen() {
 
         {result && (
           <View style={[styles.resultOverlay, { backgroundColor: result.success ? 'rgba(34,139,34,0.88)' : 'rgba(180,40,40,0.88)' }]}>
-            <Text style={styles.resultEmoji}>{result.success ? '🎉' : '❌'}</Text>
+            <Image
+              source={result.success ? FOUND_GOOSE : NOPE_GOOSE}
+              style={styles.poseGoose}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={
+                result.success
+                  ? 'The goose holding up the photo of your find, approved'
+                  : 'The goose with its wings crossed, turning away from your photo'
+              }
+            />
             <Text style={styles.resultTitle}>{result.success ? 'Found it!' : 'Not quite...'}</Text>
             <Text style={styles.resultMessage}>{result.message}</Text>
             {result.success ? (
@@ -410,6 +431,8 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
     backgroundColor: '#fff',
   },
 
+  poseGoose: { width: 120, height: 120, borderRadius: 60 },
+
   verifyingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -427,7 +450,6 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
     padding: 32,
     gap: 12,
   },
-  resultEmoji: { fontSize: 64 },
   resultTitle: { fontSize: 28, fontWeight: '900', color: '#fff' },
   resultMessage: { fontSize: 15, color: 'rgba(255,255,255,0.9)', textAlign: 'center', lineHeight: 22 },
   resultBtn: {

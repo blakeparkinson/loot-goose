@@ -1,6 +1,6 @@
 # Loot Goose brand brief
 
-Status: the icon is approved and shipped (2026-10-20); the poses are still to make. Once they land, rewrite this file as the brand guide, the way Affirming Antelope's `BRAND.md` reads.
+Status: the icon shipped on 2026-10-20 and the five poses shipped on 2026-10-21. What's left is to rewrite this file as the brand guide, the way Affirming Antelope's `BRAND.md` reads.
 
 Loot Goose is a Prime Menagerie app. It shares its look with Slab Rat: the same cartoon style, the same navy badge, one animal per app.
 
@@ -21,7 +21,7 @@ The goose is the detective of the hunt: smug, nosy, and sure it will spot the th
 | `assets/splash-icon.png` | The badge at 60% on the badge navy, shown with `contain` |
 | `assets/favicon.png` | 48 px |
 
-The screens that show the goose (`GooseSplash`, the home empty state, Goose Loose, profile, hunt complete and the create button) use `icon.png` with rounded corners, so they pick up the new art.
+The icon goose stays where it stands for the app rather than a moment: the Goose Loose button on home, the rank hero on profile and the Generate button on create. Everywhere else the goose is reacting to something, so it uses a pose (below).
 
 The old asset generator (`scripts/generate-assets.mjs`) drew a different, older goose and wrote over `icon.png`; it's gone. The icon set is made from the approved art, not generated in code.
 
@@ -39,17 +39,17 @@ The master lives in the studio repo, `prime-menagerie/brand/goose/`. To change t
 - **Never:** flat clip art, glossy 3D, or photoreal feathers.
 - **Silhouette test.** Filled solid black, the pose still reads as a goose. The neck does that work.
 
-## Poses still to make
+## Poses
 
-Production art: 1024 px square, the same style as the icon, on the navy badge plus a transparent version.
+Shipped 2026-10-21. The masters (1024 px square, on the navy badge) live in the studio repo, `prime-menagerie/brand/goose/poses/`, generated in Figma in the same file and style as the icon. The app's copies are `assets/poses/{honk,found,judging,nope,searching}.png`: 512 px, cut to a circle with the navy badge inside, so screens show them with `borderRadius` at half their size and no background. To change a pose, change the master there and run `npm run brand:sync -- loot-goose <this checkout>`; don't edit these files by hand.
 
-| Pose | What it shows | Where it goes |
+| Pose | What it shows | Where it's used |
 | --- | --- | --- |
-| HONK | Neck stretched up, bill open | Splash, success toasts |
-| Found it | Holding up the find, delighted | Item verified, hunt complete |
-| Judging | Magnifying glass over a photo | The AI judge's loading state |
-| Nope | Wings crossed, head turned away | A find the judge rejects |
-| Searching | Peering over a map | Empty states, no hunts nearby, errors |
+| HONK | Neck stretched up, bill open | The in-app splash (`GooseSplash`), under the "HONK!" bubble. Success toasts are text-only and don't show it yet. |
+| Found it | Holding up the photo of the find, with a green check | The camera's verified result, the hunt complete hero and the goose on the shareable recap card. |
+| Judging | Magnifying glass over a photo | The camera's "Checking your photo…" overlay while the AI judge decides. |
+| Nope | Wings crossed, head turned away | The camera's rejected result ("Not quite..."). |
+| Searching | Peering over a map | The empty states: home ("No hunts yet"), profile ("No completed hunts yet") and the library. No error screen shows a goose yet. |
 
 Use the goose to say something: a result, a nudge, an empty state. Don't place it as decoration.
 
@@ -94,9 +94,8 @@ Rules:
 
 ## Still to do
 
-1. Make the poses in the table and wire them to their screens.
-2. Swap the goose on primemenagerie.com (`public/apps/loot-goose.png` and the hero poses) and in the menagerie row on yourbuddyblake.com.
-3. Rewrite this file as the brand guide.
+1. Swap the goose on primemenagerie.com (`public/apps/loot-goose.png` and the hero poses) and in the menagerie row on yourbuddyblake.com.
+2. Rewrite this file as the brand guide.
 
 ## Name clearance
 

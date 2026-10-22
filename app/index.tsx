@@ -59,6 +59,7 @@ const DIFFICULTY_COLOR: Record<string, keyof AppTheme> = {
 };
 
 const GOOSE_IMAGE = require('@/assets/icon.png');
+const SEARCHING_GOOSE = require('@/assets/poses/searching.png');
 
 function FloatingGoose() {
   const C = useTheme();
@@ -93,7 +94,13 @@ function FloatingGoose() {
 
   return (
     <Animated.View style={{ transform: [{ translateY: float }, { rotate: rotation }] }}>
-      <Image source={GOOSE_IMAGE} style={styles.emptyGoose} />
+      <Image
+        source={SEARCHING_GOOSE}
+        style={styles.emptyGoose}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel="The goose peering over a map, looking for a hunt"
+      />
     </Animated.View>
   );
 }
@@ -825,7 +832,7 @@ const makeStyles = (C: AppTheme) => StyleSheet.create({
   cardMeta: { fontSize: 12, color: C.textSecondary, fontWeight: '500' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingTop: 80 },
-  emptyGoose: { width: 120, height: 120, borderRadius: 28, marginBottom: 20 },
+  emptyGoose: { width: 120, height: 120, borderRadius: 60, marginBottom: 20 },
   emptyTitle: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 8 },
   emptySubtitle: { fontSize: 15, color: C.textSecondary, textAlign: 'center', lineHeight: 22 },
 

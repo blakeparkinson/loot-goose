@@ -124,8 +124,8 @@ export default function GooseSplash({ onFinished }: Props) {
       <Animated.View style={[styles.glowRingOuter, { opacity: glowPulseOuter }]} />
 
       {/* Spinning coin accents */}
-      <Animated.Text style={[styles.coin, styles.coinTL, { transform: [{ rotate: coinRotate }] }]}>🪙</Animated.Text>
-      <Animated.Text style={[styles.coin, styles.coinTR, { transform: [{ rotate: coinRotate }] }]}>🪙</Animated.Text>
+      <Animated.Text style={[styles.coin, styles.coinTL, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
+      <Animated.Text style={[styles.coin, styles.coinTR, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
       <Animated.Text style={[styles.coin, styles.coinBL, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
       <Animated.Text style={[styles.coin, styles.coinBR, { transform: [{ rotate: coinRotate }] }]}>✨</Animated.Text>
 
@@ -137,7 +137,12 @@ export default function GooseSplash({ onFinished }: Props) {
 
       {/* Goose */}
       <Animated.View style={[styles.gooseWrap, { opacity: fadeIn, transform: gooseTransform }]}>
-        <Image source={require('@/assets/icon.png')} style={styles.goose} />
+        <Image
+          source={require('@/assets/poses/honk.png')}
+          style={styles.goose}
+          // The splash dismisses itself after ~3s, so the honk stays out of screen reader focus
+          accessible={false}
+        />
       </Animated.View>
 
       {/* Title */}
@@ -235,7 +240,7 @@ const styles = StyleSheet.create({
   goose: {
     width: 160,
     height: 160,
-    borderRadius: 36,
+    borderRadius: 80,
   },
 
   title: {
